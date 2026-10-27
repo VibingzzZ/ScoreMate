@@ -1,0 +1,174 @@
+# 德育测评规则样例 —— 广东金融学院计算机学院（2026 版）
+# 用途：规则引擎配置。细则年更时只改本文件，不改代码。
+# 数据来源：材料1《计算机学院综合测评评分细则（试行）20260702.pdf》
+# 提取日期：2026-10-15 ／ 状态：样例（德育部分已结构化，其余四维待补）
+
+meta:
+  school: 广东金融学院
+  college: 计算机学院
+  rule_version: "2026-07-02"
+  source_file: "材料1：计算机学院综合测评评分细则（试行）20260702.pdf"
+  extracted_at: "2026-10-15"
+
+# ── 计分公式 ──────────────────────────────────────────
+formulas:
+  overall: "德育*0.20 + 智育*0.60 + 体育*0.10 + 美育*0.05 + 劳育*0.05"
+  moral:   "基础分*0.30 + 互评分*0.20 + 素质加分*0.50 - 扣分"
+  moral_floor_zero: true   # 扣分 > 前三项之和 时，德育测评成绩记 0
+
+# ── 通用约束（跨所有加分项）───────────────────────────
+global_constraints:
+  time_window: true            # 证书日期必须落在评测学年内（细则多处"同一学年度内"）
+  same_category_highest_only: true   # 同一类别获不同等级，取最高，不累计
+  proof_required: true         # 无证明材料加分无效（例外见 student_officer）
+  multi_person_circle_self: true     # 多人文件中须框出本人姓名
+
+# ── 德育加分规则 ──────────────────────────────────────
+moral:
+  # 1. 学生干部（职务）
+  student_officer:
+    no_proof_required: true    # 注意事项原文："除职务无需提供证明"
+    requires_full_year: true   # 需担任满一学年才加分
+    max_positions_counted: 2   # 身兼多项职务，最多选两项计分
+    groups:
+      - level: 班级
+        items:
+          - { titles: ["（正副）班长", "（正副）团支书"], score: 12 }
+          - { titles: ["学习委员", "班主任助理"], score: 10 }
+          - { titles: ["其他班委", "团支委"], score: 6 }
+          - { titles: ["宿舍长（楼长、层长）"], score: 3 }
+          - { titles: ["课代表"], score: 2, note: "以学期计，学年内可累计 2 门" }
+      - level: 院级
+        items:
+          - { titles: ["一级负责人（常委/委员/书记/秘书长/主席/主任/社长/理事）"], score: 12 }
+          - { titles: ["二级负责人（部长/组长）"], score: 8 }
+          - { titles: ["干事"], score: 5 }
+      - level: 校级
+        items:
+          - { titles: ["一级负责人"], score: 15 }
+          - { titles: ["二级负责人"], score: 10 }
+          - { titles: ["干事", "成员"], score: 6 }
+    exclusions:
+      - "非学生工作类学生社团成员不加分"
+      - "非学生工作干部成员不加分"
+
+  # 2. 荣誉类
+  honor:
+    individual:                    # 2.(1) 个人荣誉
+      max_items_counted: 2         # 最多叠加两项
+      items:
+        - { level: 国家级, match: ["全国三好学生", "优秀学生干部", "优秀团员干部", "优秀党/团员"], score: 20 }
+        - { level: 省级,   match: ["省级三好学生", "优秀学生干部", "优秀团员干部", "优秀党/团员"], score: 15 }
+        - { level: 校级,   match: ["校级三好学生", "优秀学生干部", "优秀团员干部", "优秀党/团员"], score: 10 }
+        - { level: 院级,   match: ["优党", "优团", "优干"], score: 6 }
+        - { level: 国家级, match: ["其他各类先进个人"], score: 15 }
+        - { level: 省级,   match: ["其他各类先进个人"], score: 12 }
+        - { level: 校级,   match: ["其他各类先进个人"], score: 6 }
+        - { level: 院级,   match: ["各类先进个人"], score: 4 }
+      exclusions:
+        - "先进分子不含入党积极分子"
+        - "校外授奖单位须为国家机关行政部门或党政、群团组织（如教育部、团中央、广东省教育厅等）"
+        - "其他社会组织（行业协会）奖项不予加分"
+        - "学生组织内部评选的'部门优秀个人'等不予加分"
+        - "上一学年综测获得的奖学金荣誉、先进班集体不计入"
+    collective:                    # 2.(2) 集体荣誉，单位须为班级/团支部/学生工作组织
+      columns: [主要负责人, 其他负责人, 一般成员]
+      items:
+        - { level: 国家级, scores: [20, 20, 15] }
+        - { level: 省级,   scores: [15, 12, 8] }
+        - { level: 校级,   scores: [6, 5, 3] }
+
+  # 3. 一般性主题教育活动获奖（辩论/演讲/征文/阅读/书法/知识竞赛等）
+  activity_award:
+    columns: [一等类, 二等类, 三等类, 最佳类, 优秀类, 优胜类, 参与未获奖]
+    items:
+      - { level: 国家级, scores: [20, 18, 15, 10, 8, null, null] }
+      - { level: 省级,   scores: [15, 12, 10, 6, 4, null, null] }
+      - { level: 校级,   scores: [8, 6, 4, 3, null, null, null] }
+      - { level: 院级,   scores: [5, 4, 3, 2, null, null, null] }
+    needs_manual_verify: true      # ⚠ PDF 提取后该表数值错位（原文第 24 页），需人工对照原文补全
+    notes:
+      - "获奖加分与参与加分不累加；同一活动不同等级按最高计"
+      - "设有特等奖的按一等奖计"
+      - "纯线上（报名即参与）的活动，参与项不计分"
+
+  # 4. 暑期"三下乡"社会实践专项
+  summer_practice:
+    items:
+      - { level: 省级, scores: [15, 12, 10], leader: 8, member: 5 }
+      - { level: 校级, scores: [10, 8, 6],   leader: 5, member: 3 }
+      - { level: 院级, scores: [8, 6, 5],    leader: 4, member: 2 }
+    extra_leader_bonus: 2          # 队长/副队长在获奖加分基础上额外 +2
+    notes:
+      - "获奖与参与不累加"
+      - "同一队伍获多奖取最高；未设等级的按二等奖计"
+      - "成员须为我校在校学生，挂靠校外团队不认可"
+
+  # 5. 一般性报告文章类（非学术论文）
+  article:
+    items:
+      - { type: 国家级刊物, score: 15 }
+      - { type: 省级刊物, score: 10 }
+      - { type: 校报/校市属单位部门汇编刊物, score: 6 }
+      - { type: "《金曦》《校运会快讯》", score: 3 }
+      - { type: 校广播站, score: 2 }
+    author_ratio:
+      two_authors: [0.6, 0.4]                  # 第一/第二作者
+      three_or_more: [0.5, 0.3, 0.2]           # 最多算至第三作者
+    notes: ["同一作品按首发刊物等级计分", "需以学校官方组织活动为前提"]
+
+  # 6. 单列（单项）类
+  standalone:
+    items:
+      - { name: "重大（社会）贡献类", score: 15, note: "官方部门认定或颁证" }
+      - { name: "见义勇为类", score: 12, note: "官方部门认定或颁证" }
+      - { name: "好人好事类", score: 10, note: "官方部门认定或颁证" }
+      - { name: "无偿献血", score: 8, note: "仅在综测学年内计分" }
+      - { name: "党校、青马工程等优秀学员", score: 5 }
+      - { name: "手写 800 字以上经典书籍读书笔记", score: 1, unit: "篇", cap: 5 }
+      - { name: "理想信念/人文社科/党团学习讲座", score: 1, unit: "次", cap: 5 }
+      - { name: "公益/志愿活动", score: 0.25, unit: "小时", cap: 10,
+          note: "30分钟<时长<1小时按1小时计；<30分钟按半小时计" }
+
+# ── 德育扣分规则 ──────────────────────────────────────
+moral_deduction:
+  items:
+    - { name: "违反四项基本原则、参加非法组织/游行示威", score: -50, unit: "次" }
+    - { name: "校园网发布淫秽/非法/反动信息", score_range: [-50, -20] }
+    - { name: "公众场所张贴大小字报", score_range: [-50, -20] }
+    - { name: "缺乏诚信/严重失信/考试作弊/恶意拖欠学费/剽窃", score: -20, unit: "次" }
+    - { name: "擅自留宿外人", score: -3, unit: "次" }
+    - { name: "无故不参加社会实践或不交调查报告", score: -2, unit: "次" }
+    - { name: "未经请假缺席政治学习/组织生活/公益活动/集体活动", score: -2, unit: "次" }
+    - { name: "其他违反学生管理规定", score_range: [-10, -2] }
+  discipline:
+    校内处分: { 留校察看: -50, 记过: -40, 严重警告: -30, 警告: -20, 学校通报批评: -5, 学院通报批评: -3 }
+    党内处分: { 开除党籍: -60, 留党留团察看: -50, 记过: -30, 严重警告: -20, 警告: -12, 党团内通报批评: -6 }
+
+# ── 输出与复核策略 ────────────────────────────────────
+review_policy:
+  human_confirm_required: true     # 依据学院制度：班委负责审查分值是否有误
+  output_per_item:
+    - 加分项类别与名称
+    - 分值
+    - 依据（细则条目 + 原文摘录）
+    - 时间窗口判定（in_window: true/false/uncertain）
+    - 置信度与待确认标记
+  never_auto_final: true           # 输出一律为"待复核草稿"，不自动定稿
+
+# ── 本样例对应的两张真实证书（回归测试用例）──────────
+# 评测学年：2025-2026（用户 2026-10-15 确认）
+test_cases:
+  - material: "聘书（班主任助理）"
+    date: "2025-09-01"
+    matched_rule: "moral.student_officer.groups[0].items[1]（学习委员、班主任助理）"
+    score: 10
+    in_window: true
+    note: "2025-09-01 起任满 2 年，覆盖 2025-2026 学年；职务类无需证明材料"
+  - material: "荣誉证书（军训先进个人）"
+    date: "2024-09-24"
+    issuer: "广东金融学院学生工作部（处）"
+    matched_rule: "moral.honor.individual（校级其他各类先进个人）"
+    score: 6
+    in_window: false              # 2024-09-24 属 2024-2025 学年，超出 2025-2026 窗口
+    note: "级别判定给出候选（校级活动获奖 +6 / 校级先进个人 +6）；跨学年是否绝对不计入无细则明文，工具只标记+给依据，最终人工/班委确认"

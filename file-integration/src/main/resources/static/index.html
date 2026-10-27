@@ -6,31 +6,47 @@
     <link rel="icon" href="data:,">
     <title>综测材料整理</title>
     <style>
-        :root { color-scheme: light; }
+        :root {
+            color-scheme: light;
+            --bg: #f5f6f8;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --primary: #2563eb;
+            --primary-d: #1d4ed8;
+            --ok-bg: #ecfdf3;  --ok-fg: #067647;
+            --warn-bg: #fffaeb; --warn-fg: #b54708;
+            --bad-bg: #fef3f2;  --bad-fg: #b42318;
+            --radius: 10px;
+            --radius-sm: 7px;
+            --shadow: 0 1px 2px rgba(16,24,40,.05);
+        }
         body {
             margin: 0;
             font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-            color: #222;
-            background: #fafafa;
+            color: var(--text);
+            background: var(--bg);
         }
         .wrap { max-width: 720px; margin: 48px auto; padding: 0 24px 64px; }
-        h1 { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+        h1 { font-size: 20px; font-weight: 650; margin: 0; }
         h2 { font-size: 14px; font-weight: 600; margin: 0; }
-        .sub { color: #666; font-size: 13px; margin: 0 0 24px; line-height: 1.7; }
-        .card { background: #fff; border: 1px solid #e5e5e5; border-radius: 6px; }
+        .sub { color: var(--muted); font-size: 13px; margin: 0; line-height: 1.7; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
         .row {
             display: flex; justify-content: space-between; align-items: center;
             gap: 16px; padding: 13px 18px; font-size: 14px; border-bottom: 1px solid #f0f0f0;
         }
         .row:last-child { border-bottom: none; }
-        .k { color: #555; flex: none; }
+        .k { color: var(--muted); flex: none; }
         .v { font-variant-numeric: tabular-nums; text-align: right; word-break: break-all; }
-        .ok { color: #1a7f37; }
-        .todo { color: #9a6700; }
-        .bad { color: #b42318; }
+        .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.6; }
+        .badge.ok   { background: var(--ok-bg);   color: var(--ok-fg); }
+        .badge.warn { background: var(--warn-bg); color: var(--warn-fg); }
+        .badge.bad  { background: var(--bad-bg);  color: var(--bad-fg); }
         .alert {
             margin-top: 12px; padding: 12px 16px; font-size: 13px; line-height: 1.7;
-            background: #fef3f2; border: 1px solid #fecdca; border-radius: 6px; color: #b42318;
+            background: var(--bad-bg); border: 1px solid #fecdca; border-radius: var(--radius); color: var(--bad-fg);
             display: none;
         }
         .alert .t { font-weight: 600; margin-bottom: 4px; }
@@ -39,44 +55,76 @@
             display: flex; justify-content: space-between; align-items: baseline;
             gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
         }
-        .hint { font-size: 12px; color: #888; line-height: 1.6; }
+        .hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
         .body { padding: 18px; }
         .picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
         input[type=file] { font-size: 13px; max-width: 100%; }
-        input[type=password] {
-            flex: 1 1 240px; min-width: 200px; font-size: 13px; padding: 7px 10px;
-            border: 1px solid #d0d5dd; border-radius: 5px; font-family: inherit;
-        }
         button {
-            font-size: 13px; padding: 7px 16px; border-radius: 5px; cursor: pointer;
-            border: 1px solid #d0d5dd; background: #fff; color: #222; font-family: inherit;
+            font-size: 13px; padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer;
+            border: 1px solid var(--border); background: #fff; color: var(--text); font-family: inherit;
+            transition: background .15s, border-color .15s;
         }
-        button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+        button:hover:not(:disabled) { background: #f9fafb; border-color: #cbd5e1; }
+        button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+        button.primary:hover:not(:disabled) { background: var(--primary-d); }
         button:disabled { opacity: .5; cursor: default; }
         .msg { margin-top: 12px; font-size: 13px; line-height: 1.7; }
-        .msg.err { color: #b42318; }
-        .msg.good { color: #1a7f37; }
-        .msg.info { color: #555; }
+        .msg.err { color: var(--bad-fg); }
+        .msg.good { color: var(--ok-fg); }
+        .msg.info { color: var(--muted); }
         .state { font-size: 13px; color: #444; line-height: 1.8; }
         table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
         th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
-        th { width: 132px; color: #555; font-weight: 400; }
+        th { width: 132px; color: var(--muted); font-weight: 400; }
         td { word-break: break-word; }
         td.null { color: #aaa; }
-        .meta { margin-top: 12px; font-size: 12px; color: #888; }
-        footer { margin-top: 24px; font-size: 12px; color: #888; line-height: 1.9; }
+        .meta { margin-top: 12px; font-size: 12px; color: var(--muted); }
+        footer { margin-top: 24px; font-size: 12px; color: var(--muted); line-height: 1.9; }
+        .hd { display: flex; align-items: center; gap: 14px; margin: 8px 0 28px; }
+        .logo {
+            width: 42px; height: 42px; border-radius: 10px; background: var(--primary); color: #fff;
+            display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex: none;
+        }
+        .hd h1 { font-size: 20px; font-weight: 650; }
+        .hd .sub { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+        .drop {
+            border: 1.5px dashed #cbd5e1; border-radius: var(--radius); padding: 18px; text-align: center;
+            transition: border-color .15s, background .15s;
+        }
+        .drop:hover { border-color: var(--primary); background: #f8faff; }
+        /* 多厂商 Key 表单 */
+        .field { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
+        .field label { font-size: 12px; color: var(--muted); }
+        .field input, .field select {
+            font-size: 13px; padding: 7px 10px; border: 1px solid #d0d5dd;
+            border-radius: var(--radius-sm); font-family: inherit; background: #fff;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        .field input:focus, .field select:focus {
+            outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.15);
+        }
+        .page-title { margin-top: 14px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+        @media (max-width: 560px) {
+            .wrap { padding: 0 16px 48px; }
+            .row { flex-wrap: wrap; }
+        }
     </style>
 </head>
 <body>
 <div class="wrap">
-    <h1>综测材料整理</h1>
-    <p class="sub">本地运行。材料不经过我的服务器，只有证书图片会发给你自己配置的模型。</p>
+    <header class="hd">
+        <div class="logo">综</div>
+        <div>
+            <h1>综测材料整理</h1>
+            <p class="sub">本地运行 · 材料不上传 · 仅证书图片发往你配置的模型</p>
+        </div>
+    </header>
 
     <div class="card">
-        <div class="row"><span class="k">服务</span><span class="v ok">已启动</span></div>
+        <div class="row"><span class="k">服务</span><span class="badge ok">已启动</span></div>
         <div class="row"><span class="k">监听地址</span><span class="v">127.0.0.1:<span id="port">-</span></span></div>
-        <div class="row"><span class="k">规则配置</span><span class="v todo" id="rules">读取中…</span></div>
-        <div class="row"><span class="k">视觉模型</span><span class="v todo" id="llm">读取中…</span></div>
+        <div class="row"><span class="k">规则配置</span><span class="badge warn" id="rules">读取中…</span></div>
+        <div class="row"><span class="k">视觉模型</span><span class="badge warn" id="llm">读取中…</span></div>
     </div>
 
     <div class="alert" id="alert">
@@ -92,8 +140,29 @@
         <div class="card">
             <div class="body">
                 <div class="state" id="key-state">读取中…</div>
+                <div class="field">
+                    <label>厂商</label>
+                    <select id="key-provider">
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="doubao">豆包（火山方舟）</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="claude">Claude（经 OpenRouter）</option>
+                        <option value="custom">自定义 / 兼容网关</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>API Key</label>
+                    <input type="password" id="key-input" placeholder="粘贴 API Key" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="field">
+                    <label>接口地址 baseUrl</label>
+                    <input type="text" id="key-baseurl" placeholder="选厂商自动带出，可改">
+                </div>
+                <div class="field">
+                    <label>模型名 model</label>
+                    <input type="text" id="key-model" placeholder="选厂商自动带出，可改">
+                </div>
                 <div class="picker">
-                    <input type="password" id="key-input" placeholder="粘贴 API Key（sk-...）" autocomplete="off" spellcheck="false">
                     <button class="primary" id="key-save">保存并测试</button>
                     <button id="key-clear">清除</button>
                 </div>
@@ -111,11 +180,11 @@
         </div>
         <div class="card">
             <div class="body">
-                <div class="picker">
-                    <input type="file" id="file" accept="image/jpeg,image/png,image/webp">
+                <div class="drop">
+                    <input type="file" id="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp">
                     <button class="primary" id="btn">开始识别</button>
                 </div>
-                <div class="msg info" id="msg">选一张证书照片（手机拍的就很好，歪的也行）。暂不支持 PDF。</div>
+                <div class="msg info" id="msg">选一张证书照片、一份 PDF，或一份 Word（doc / docx，需本机装 LibreOffice）。</div>
                 <div id="result"></div>
             </div>
         </div>
@@ -143,6 +212,15 @@
         ['confidence', '置信度']
     ];
 
+    // 厂商默认值，与后端 ProviderDefaults 保持一致（页面选厂商时自动带出，可改）
+    const PROVIDER_DEFAULTS = {
+        deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+        doubao:   { baseUrl: 'https://ark.cn-beijing.volces.com/api/v1', model: 'doubao-vision-pro-32k' },
+        openai:   { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+        claude:   { baseUrl: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-3.5-sonnet' },
+        custom:   { baseUrl: '', model: '' }
+    };
+
     const $ = id => document.getElementById(id);
     $('port').textContent = location.port || '80';
 
@@ -166,30 +244,36 @@
             const rulesEl = $('rules');
             if (rules.length > 0) {
                 rulesEl.textContent = rules.length + ' 份 · ' + rules.map(r => r.college).join('、');
-                rulesEl.className = 'v ok';
+                rulesEl.className = 'badge ok';
             } else {
                 rulesEl.textContent = '未加载';
-                rulesEl.className = 'v todo';
+                rulesEl.className = 'badge warn';
             }
 
             const llm = d.llm || {};
             const llmEl = $('llm');
             if (llm.configured) {
                 llmEl.textContent = '已就绪 · ' + (llm.masked || '');
-                llmEl.className = 'v ok';
+                llmEl.className = 'badge ok';
             } else if (llm.masked) {
                 llmEl.textContent = 'Key 已保存，待验证';
-                llmEl.className = 'v todo';
+                llmEl.className = 'badge warn';
             } else {
                 llmEl.textContent = '未配置';
-                llmEl.className = 'v todo';
+                llmEl.className = 'badge warn';
             }
 
             const stateEl = $('key-state');
+            // 回填厂商 / 地址 / 模型，方便用户直接改
+            if (llm.provider) $('key-provider').value = llm.provider;
+            if (llm.baseUrl) $('key-baseurl').value = llm.baseUrl;
+            if (llm.model) $('key-model').value = llm.model;
+
             if (llm.masked) {
                 const src = llm.source === 'saved' ? '已加密保存在本机' : '来自环境变量 LLM_API_KEY';
-                stateEl.innerHTML = '当前：<b>' + esc(llm.masked) + '</b> · ' + esc(src)
-                    + '<br><span class="hint">' + esc(llm.describe || '') + '</span>';
+                const who = (llm.provider ? llm.provider + ' · ' : '') + (llm.model || '');
+                stateEl.innerHTML = '当前：<b>' + esc(who) + '</b> · ' + esc(src)
+                    + '<br><span class="hint">' + esc(llm.masked) + '</span>';
             } else {
                 stateEl.innerHTML = '当前：<b>未设置</b><br><span class="hint">'
                     + esc(llm.describe || '') + '</span>';
@@ -199,17 +283,26 @@
             if (problems.length > 0) {
                 $('alert').style.display = 'block';
                 $('alert-body').innerHTML = problems.map(p => '<div>· ' + esc(p) + '</div>').join('');
-                if (rules.length === 0) rulesEl.className = 'v bad';
+                if (rules.length === 0) rulesEl.className = 'badge bad';
             }
         } catch (e) {
             $('rules').textContent = '接口不可用';
-            $('rules').className = 'v bad';
+            $('rules').className = 'badge bad';
         }
     }
 
+    $('key-provider').addEventListener('change', () => {
+        const d = PROVIDER_DEFAULTS[$('key-provider').value] || { baseUrl: '', model: '' };
+        if (!$('key-baseurl').value) $('key-baseurl').value = d.baseUrl;
+        if (!$('key-model').value) $('key-model').value = d.model;
+    });
+
     $('key-save').addEventListener('click', async () => {
+        const provider = $('key-provider').value;
         const input = $('key-input');
         const value = input.value.trim();
+        const baseUrl = $('key-baseurl').value.trim();
+        const model = $('key-model').value.trim();
         const msgEl = $('key-msg');
         if (!value) {
             setMsg(msgEl, 'err', '先粘贴 Key。');
@@ -224,7 +317,7 @@
             const resp = await fetch('/api/llm/key', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ apiKey: value })
+                body: JSON.stringify({ provider, apiKey: value, baseUrl, model })
             });
             const payload = await resp.json().catch(() => ({}));
 
@@ -249,6 +342,8 @@
         try {
             await fetch('/api/llm/key', { method: 'DELETE' });
             $('key-input').value = '';
+            $('key-baseurl').value = '';
+            $('key-model').value = '';
             setMsg(msgEl, 'info', '已清除本机保存的 Key。');
             refreshStatus();
         } catch (e) {
@@ -260,7 +355,7 @@
         const file = $('file').files && $('file').files[0];
         const msgEl = $('msg');
         if (!file) {
-            setMsg(msgEl, 'err', '先选一张图片。');
+            setMsg(msgEl, 'err', '先选一个文件。');
             return;
         }
 
@@ -283,7 +378,7 @@
             const d = payload.data || {};
             setMsg(msgEl, 'info', '识别完成，用时 ' + ((Date.now() - started) / 1000).toFixed(1)
                 + ' 秒。以下字段请自己核对一遍。');
-            render(d.fact || {}, d);
+            renderPages(d);
         } catch (e) {
             setMsg(msgEl, 'err', '请求失败：' + e);
         } finally {
@@ -291,7 +386,26 @@
         }
     });
 
-    function render(fact, meta) {
+    function renderPages(d) {
+        const pages = d.pages || [];
+        let html = '';
+        if (pages.length === 0) {
+            html = '<div class="msg err">未能识别任何页面</div>';
+        } else if (pages.length === 1) {
+            html = renderOne(pages[0]);
+        } else {
+            html = '<div class="hint">共 ' + (d.pageCount || pages.length) + ' 页，识别前 ' + d.pagesUsed + ' 页'
+                + (d.note ? '（' + esc(d.note) + '）' : '') + '</div>';
+            pages.forEach((fact, i) => {
+                html += '<div class="page-title">第 ' + (i + 1) + ' 页</div>' + renderOne(fact);
+            });
+        }
+        html += '<div class="meta">模型 ' + esc(d.model) + ' · ' + esc(d.latencyMs) + ' ms · '
+            + (d.totalTokens == null ? 'token 未知' : d.totalTokens + ' tokens') + '</div>';
+        $('result').innerHTML = html;
+    }
+
+    function renderOne(fact) {
         let html = '<table><tbody>';
         for (const [key, label] of FIELDS) {
             const raw = fact[key];
@@ -299,10 +413,7 @@
             html += '<tr><th>' + label + '</th><td class="' + (empty ? 'null' : '') + '">'
                 + (empty ? '（未识别到）' : esc(raw)) + '</td></tr>';
         }
-        html += '</tbody></table>';
-        html += '<div class="meta">模型 ' + esc(meta.model) + ' · ' + esc(meta.latencyMs) + ' ms · '
-            + (meta.totalTokens == null ? 'token 未知' : meta.totalTokens + ' tokens') + '</div>';
-        $('result').innerHTML = html;
+        return html + '</tbody></table>';
     }
 
     refreshStatus();

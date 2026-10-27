@@ -1,4 +1,4 @@
-package com.abing.fileintegration.common;
+package com.abing.assessment.common;
 
 import lombok.Getter;
 

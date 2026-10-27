@@ -1,22 +1,53 @@
 spring:
   application:
-    name: comprehensive-assessment
+    name: assessment
 
-  profiles:
-    active: dev
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 100MB
 
+# 零外部服务：不连数据库、不连 Redis。状态全部落在工作目录（artifacts/），见架构文档 §3.1
 server:
-  port: 8080
+  address: 127.0.0.1     # 只监听回环地址。不写这行 = 监听 0.0.0.0 = 同网段任何人都能打开你的界面
+  # port 不在这里配：由 FileIntegrationApplication#main 探测 18080-18120 后注入，
+  # 原因见那里的注释（server.port=0 在本机会踩端口竞态）。
 
-mybatis-plus:
-  mapper-locations: classpath:mapper/*.xml
+# 启动完成后自动打开浏览器。本程序没有窗口，不打开的话用户会觉得"点了没反应"
+assessment:
+  open-browser: true
 
-  configuration:
-    map-underscore-to-camel-case: true
+# ── 视觉模型接入 ──────────────────────────────────────────────
+# 必须选「支持图像输入」的模型。deepseek-chat 是纯文本模型，读不了图片，
+# 拿它跑会得到"我看不到图像"，容易误判成 prompt 写错。
+llm:
+  base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  model: qwen-vl-max
+  # ⚠ 只从环境变量读。绝不要把真实 Key 写在这个文件里（会被提交进 git）
+  api-key: ${LLM_API_KEY:}
+  timeout-seconds: 120
+  # 相对 configs/prompt/ 的路径，改 prompt 不用重新打包
+  prompt-file: extract-v1.txt
 
-    global-config:
-      db-config:
+logging:
+  level:
+    # 自己的包：debug 方便排查。包名要对得上，否则这行永远不生效
+    com.abing.assessment: debug
+    # 绝对不要给 HTTP 客户端（RestClient/WebClient）开 debug，
+    # 否则会把 Authorization: Bearer sk-xxx 原样写进日志
+  charset:
+    # 日志是 UTF-8。注意：PowerShell 5.1 的 Get-Content 默认按 GBK 读，
+    # 直接 Get-Content 会看到乱码，加 -Encoding UTF8 或直接用 VS Code 打开即可。
+    file: UTF-8
+    console: UTF-8
+  file:
+    # 不能写相对路径：exe 的工作目录可能是安装目录（Program Files 不可写）
+    name: ${LOCALAPPDATA:${user.home}}/Assessment/logs/app.log
 
-
-
-
+# Swagger 默认关闭。本地单机不需要它，而且它会把所有接口结构暴露成 /v3/api-docs。
+# 要调接口时临时改成 true 即可，不用改代码。
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

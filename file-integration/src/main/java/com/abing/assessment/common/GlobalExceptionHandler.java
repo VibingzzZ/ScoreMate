@@ -1,4 +1,4 @@
-package com.abing.fileintegration.common;
+package com.abing.assessment.common;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;

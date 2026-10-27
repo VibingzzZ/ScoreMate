@@ -1,5 +1,8 @@
-package com.abing.fileintegration.common;
+package com.abing.assessment.common;
 
+import lombok.Getter;
+
+@Getter
 public class BusinessException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
@@ -11,7 +14,4 @@ public class BusinessException extends RuntimeException {
         this.code = code;
     }
 
-    public int getCode() {
-        return code;
-    }
 }

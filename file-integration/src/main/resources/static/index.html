@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>综测材料整理</title>
+    <style>
+        :root { color-scheme: light; }
+        body {
+            margin: 0;
+            font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+            color: #222;
+            background: #fafafa;
+        }
+        .wrap { max-width: 720px; margin: 48px auto; padding: 0 24px 64px; }
+        h1 { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+        h2 { font-size: 14px; font-weight: 600; margin: 0; }
+        .sub { color: #666; font-size: 13px; margin: 0 0 24px; line-height: 1.7; }
+        .card { background: #fff; border: 1px solid #e5e5e5; border-radius: 6px; }
+        .row {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 16px; padding: 13px 18px; font-size: 14px; border-bottom: 1px solid #f0f0f0;
+        }
+        .row:last-child { border-bottom: none; }
+        .k { color: #555; flex: none; }
+        .v { font-variant-numeric: tabular-nums; text-align: right; word-break: break-all; }
+        .ok { color: #1a7f37; }
+        .todo { color: #9a6700; }
+        .bad { color: #b42318; }
+        .alert {
+            margin-top: 12px; padding: 12px 16px; font-size: 13px; line-height: 1.7;
+            background: #fef3f2; border: 1px solid #fecdca; border-radius: 6px; color: #b42318;
+            display: none;
+        }
+        .alert .t { font-weight: 600; margin-bottom: 4px; }
+        .panel { margin-top: 26px; }
+        .panel-head {
+            display: flex; justify-content: space-between; align-items: baseline;
+            gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+        }
+        .hint { font-size: 12px; color: #888; line-height: 1.6; }
+        .body { padding: 18px; }
+        .picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+        input[type=file] { font-size: 13px; max-width: 100%; }
+        input[type=password] {
+            flex: 1 1 240px; min-width: 200px; font-size: 13px; padding: 7px 10px;
+            border: 1px solid #d0d5dd; border-radius: 5px; font-family: inherit;
+        }
+        button {
+            font-size: 13px; padding: 7px 16px; border-radius: 5px; cursor: pointer;
+            border: 1px solid #d0d5dd; background: #fff; color: #222; font-family: inherit;
+        }
+        button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+        button:disabled { opacity: .5; cursor: default; }
+        .msg { margin-top: 12px; font-size: 13px; line-height: 1.7; }
+        .msg.err { color: #b42318; }
+        .msg.good { color: #1a7f37; }
+        .msg.info { color: #555; }
+        .state { font-size: 13px; color: #444; line-height: 1.8; }
+        table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+        th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+        th { width: 132px; color: #555; font-weight: 400; }
+        td { word-break: break-word; }
+        td.null { color: #aaa; }
+        .meta { margin-top: 12px; font-size: 12px; color: #888; }
+        footer { margin-top: 24px; font-size: 12px; color: #888; line-height: 1.9; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1>综测材料整理</h1>
+    <p class="sub">本地运行。材料不经过我的服务器，只有证书图片会发给你自己配置的模型。</p>
+
+    <div class="card">
+        <div class="row"><span class="k">服务</span><span class="v ok">已启动</span></div>
+        <div class="row"><span class="k">监听地址</span><span class="v">127.0.0.1:<span id="port">-</span></span></div>
+        <div class="row"><span class="k">规则配置</span><span class="v todo" id="rules">读取中…</span></div>
+        <div class="row"><span class="k">视觉模型</span><span class="v todo" id="llm">读取中…</span></div>
+    </div>
+
+    <div class="alert" id="alert">
+        <div class="t">配置有问题</div>
+        <div id="alert-body"></div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-head">
+            <h2>模型 API Key</h2>
+            <span class="hint">用自己的 Key（BYOK）</span>
+        </div>
+        <div class="card">
+            <div class="body">
+                <div class="state" id="key-state">读取中…</div>
+                <div class="picker">
+                    <input type="password" id="key-input" placeholder="粘贴 API Key（sk-...）" autocomplete="off" spellcheck="false">
+                    <button class="primary" id="key-save">保存并测试</button>
+                    <button id="key-clear">清除</button>
+                </div>
+                <div class="msg info" id="key-msg">
+                    Key 会用 Windows DPAPI 加密保存在本机，只有当前 Windows 用户能解开。保存时会立刻测一次连通性，测不通就不会留下。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-head">
+            <h2>试识别一份证书</h2>
+            <span class="hint">只有这里识别出来的字段，才会进入后续算分</span>
+        </div>
+        <div class="card">
+            <div class="body">
+                <div class="picker">
+                    <input type="file" id="file" accept="image/jpeg,image/png,image/webp">
+                    <button class="primary" id="btn">开始识别</button>
+                </div>
+                <div class="msg info" id="msg">选一张证书照片（手机拍的就很好，歪的也行）。暂不支持 PDF。</div>
+                <div id="result"></div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        M1 阶段：验证「视觉模型能不能看懂证书」。识别结果还不是最终分数，算分要靠规则引擎。
+    </footer>
+</div>
+
+<script>
+    const FIELDS = [
+        ['doc_type', '材料类型'],
+        ['person_name', '姓名'],
+        ['is_multi_person', '含他人姓名'],
+        ['issuer', '颁发单位'],
+        ['date', '签发日期'],
+        ['period_start', '任期起'],
+        ['period_end', '任期止'],
+        ['title', '名称'],
+        ['achievement', '获奖等级'],
+        ['level_hint', '级别（弱判断）'],
+        ['category_guess', '类别（弱判断）'],
+        ['evidence_quote', '原文摘录'],
+        ['confidence', '置信度']
+    ];
+
+    const $ = id => document.getElementById(id);
+    $('port').textContent = location.port || '80';
+
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function setMsg(el, cls, text) {
+        el.className = 'msg ' + cls;
+        el.textContent = text;
+    }
+
+    async function refreshStatus() {
+        try {
+            const resp = await fetch('/api/status');
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const d = await resp.json();
+
+            const rules = d.rules || [];
+            const rulesEl = $('rules');
+            if (rules.length > 0) {
+                rulesEl.textContent = rules.length + ' 份 · ' + rules.map(r => r.college).join('、');
+                rulesEl.className = 'v ok';
+            } else {
+                rulesEl.textContent = '未加载';
+                rulesEl.className = 'v todo';
+            }
+
+            const llm = d.llm || {};
+            const llmEl = $('llm');
+            if (llm.configured) {
+                llmEl.textContent = '已就绪 · ' + (llm.masked || '');
+                llmEl.className = 'v ok';
+            } else if (llm.masked) {
+                llmEl.textContent = 'Key 已保存，待验证';
+                llmEl.className = 'v todo';
+            } else {
+                llmEl.textContent = '未配置';
+                llmEl.className = 'v todo';
+            }
+
+            const stateEl = $('key-state');
+            if (llm.masked) {
+                const src = llm.source === 'saved' ? '已加密保存在本机' : '来自环境变量 LLM_API_KEY';
+                stateEl.innerHTML = '当前：<b>' + esc(llm.masked) + '</b> · ' + esc(src)
+                    + '<br><span class="hint">' + esc(llm.describe || '') + '</span>';
+            } else {
+                stateEl.innerHTML = '当前：<b>未设置</b><br><span class="hint">'
+                    + esc(llm.describe || '') + '</span>';
+            }
+
+            const problems = d.problems || [];
+            if (problems.length > 0) {
+                $('alert').style.display = 'block';
+                $('alert-body').innerHTML = problems.map(p => '<div>· ' + esc(p) + '</div>').join('');
+                if (rules.length === 0) rulesEl.className = 'v bad';
+            }
+        } catch (e) {
+            $('rules').textContent = '接口不可用';
+            $('rules').className = 'v bad';
+        }
+    }
+
+    $('key-save').addEventListener('click', async () => {
+        const input = $('key-input');
+        const value = input.value.trim();
+        const msgEl = $('key-msg');
+        if (!value) {
+            setMsg(msgEl, 'err', '先粘贴 Key。');
+            return;
+        }
+
+        $('key-save').disabled = true;
+        $('key-clear').disabled = true;
+        setMsg(msgEl, 'info', '正在测试连通性…通常 1 到 3 秒。');
+
+        try {
+            const resp = await fetch('/api/llm/key', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey: value })
+            });
+            const payload = await resp.json().catch(() => ({}));
+
+            if (!resp.ok) {
+                setMsg(msgEl, 'err', (payload && payload.message) || ('保存失败（HTTP ' + resp.status + '）'));
+                return;
+            }
+            input.value = '';
+            setMsg(msgEl, 'good', '保存成功，Key 已加密存在本机，连通性正常。');
+            refreshStatus();
+        } catch (e) {
+            setMsg(msgEl, 'err', '请求失败：' + e);
+        } finally {
+            $('key-save').disabled = false;
+            $('key-clear').disabled = false;
+        }
+    });
+
+    $('key-clear').addEventListener('click', async () => {
+        if (!confirm('确定清除本机保存的 Key？')) return;
+        const msgEl = $('key-msg');
+        try {
+            await fetch('/api/llm/key', { method: 'DELETE' });
+            $('key-input').value = '';
+            setMsg(msgEl, 'info', '已清除本机保存的 Key。');
+            refreshStatus();
+        } catch (e) {
+            setMsg(msgEl, 'err', '清除失败：' + e);
+        }
+    });
+
+    $('btn').addEventListener('click', async () => {
+        const file = $('file').files && $('file').files[0];
+        const msgEl = $('msg');
+        if (!file) {
+            setMsg(msgEl, 'err', '先选一张图片。');
+            return;
+        }
+
+        $('btn').disabled = true;
+        $('result').innerHTML = '';
+        setMsg(msgEl, 'info', '识别中…视觉模型通常要 5 到 30 秒，别关页面。');
+
+        const started = Date.now();
+        try {
+            const form = new FormData();
+            form.append('file', file);
+            const resp = await fetch('/api/extract', { method: 'POST', body: form });
+            const payload = await resp.json().catch(() => ({}));
+
+            if (!resp.ok) {
+                setMsg(msgEl, 'err', (payload && payload.message) || ('识别失败（HTTP ' + resp.status + '）'));
+                return;
+            }
+
+            const d = payload.data || {};
+            setMsg(msgEl, 'info', '识别完成，用时 ' + ((Date.now() - started) / 1000).toFixed(1)
+                + ' 秒。以下字段请自己核对一遍。');
+            render(d.fact || {}, d);
+        } catch (e) {
+            setMsg(msgEl, 'err', '请求失败：' + e);
+        } finally {
+            $('btn').disabled = false;
+        }
+    });
+
+    function render(fact, meta) {
+        let html = '<table><tbody>';
+        for (const [key, label] of FIELDS) {
+            const raw = fact[key];
+            const empty = raw === null || raw === undefined || raw === '';
+            html += '<tr><th>' + label + '</th><td class="' + (empty ? 'null' : '') + '">'
+                + (empty ? '（未识别到）' : esc(raw)) + '</td></tr>';
+        }
+        html += '</tbody></table>';
+        html += '<div class="meta">模型 ' + esc(meta.model) + ' · ' + esc(meta.latencyMs) + ' ms · '
+            + (meta.totalTokens == null ? 'token 未知' : meta.totalTokens + ' tokens') + '</div>';
+        $('result').innerHTML = html;
+    }
+
+    refreshStatus();
+</script>
+</body>
+</html>

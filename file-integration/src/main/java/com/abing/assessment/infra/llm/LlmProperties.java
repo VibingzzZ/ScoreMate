@@ -14,6 +14,7 @@ public record LlmProperties(
         String baseUrl,
         String model,
         String apiKey,
+        String provider,
         int timeoutSeconds,
         String promptFile
 ) {

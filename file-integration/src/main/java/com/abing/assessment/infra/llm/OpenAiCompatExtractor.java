@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OpenAI 兼容协议的视觉模型接入（通义 / 智谱 / 豆包 / vLLM / Ollama 都走这套）。
+ * OpenAI 兼容协议的视觉模型接入（DeepSeek / 豆包 / OpenAI / 经网关的 Claude 都走这套）。
  *
  * <p>用 JDK 自带的 {@link HttpClient}，不引第三方 HTTP 库：少一个依赖，少一处升级风险，
  * 而且超时行为明确可控。
@@ -35,7 +35,7 @@ import java.util.Map;
  * <p>四个刻意的约束：
  * <ol>
  *   <li>prompt 从 {@code configs/prompt/} 读，改 prompt 不用重新打包</li>
- *   <li>Key 从 {@link ApiKeyProvider} 取（页面填的优先，其次环境变量），本类不持有</li>
+ *   <li>Key / 地址 / 模型来自 {@link ApiKeyProvider} 的当前档案（页面填的优先，其次环境变量），本类不持有</li>
  *   <li>日志里只出现 model / status / 耗时 / token，<b>永不出现 Key</b></li>
  *   <li>错误按 HTTP 状态分类成用户能行动的话（401 和 404 长得像但原因完全不同）</li>
  * </ol>
@@ -78,41 +78,39 @@ public class OpenAiCompatExtractor implements Extractor {
 
     @Override
     public ExtractionResult extract(byte[] image, String mimeType) {
-        String apiKey = requireApiKey();
+        LlmProfile profile = requireProfile();
 
         String dataUrl = "data:" + mimeType + ";base64," + Base64.getEncoder().encodeToString(image);
-        String requestBody = toJson(payload(dataUrl));
+        String requestBody = toJson(payload(dataUrl, profile.model()));
 
         long startedAt = System.currentTimeMillis();
-        HttpResponse<String> response = postJson(requestBody, apiKey);
+        HttpResponse<String> response = postJson(requestBody, profile);
         long latencyMs = System.currentTimeMillis() - startedAt;
 
         if (response.statusCode() != 200) {
             throw classify(response.statusCode(), response.body());
         }
-        return parse(response.body(), latencyMs);
+        return parse(response.body(), latencyMs, profile.model());
     }
 
     /**
      * 只验证 Key 与模型名。用一条纯文本 ping，不发图片。
-     * <p>如果模型不接受纯文本输入（部分视觉专有模型会返回 400），也视为"可达"——
-     * 这个方法的目的是验证凭据，不是验证图片能力。
      */
     @Override
     public void ping() {
-        String apiKey = requireApiKey();
+        LlmProfile profile = requireProfile();
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", props.model());
+        body.put("model", profile.model());
         body.put("temperature", 0);
         body.put("max_tokens", PING_MAX_TOKENS);
         body.put("messages", List.of(Map.of("role", "user", "content", "ping")));
 
-        HttpResponse<String> response = postJson(toJson(body), apiKey);
+        HttpResponse<String> response = postJson(toJson(body), profile);
         int status = response.statusCode();
 
         if (status == 200) {
-            log.info("连通性测试通过：{}", props.describe());
+            log.info("连通性测试通过：{}", describe());
             return;
         }
         if (status == 400) {
@@ -124,34 +122,38 @@ public class OpenAiCompatExtractor implements Extractor {
 
     @Override
     public boolean isConfigured() {
-        return prompt != null && apiKeys.hasKey();
+        return prompt != null && apiKeys.currentProfile() != null;
     }
 
     @Override
     public String describe() {
-        return props.describe();
+        LlmProfile p = apiKeys.currentProfile();
+        if (p == null) {
+            return props.describe();
+        }
+        return p.model() + " @ " + p.baseUrl() + "（" + (p.provider() == null ? "custom" : p.provider()) + "）";
     }
 
     // ── 内部实现 ──────────────────────────────────────────────────────────
 
-    private String requireApiKey() {
+    private LlmProfile requireProfile() {
         if (prompt == null) {
             throw new BusinessException("缺少 prompt 模板：configs/prompt/" + props.promptFile(), 500);
         }
-        String apiKey = apiKeys.current();
-        if (apiKey == null) {
+        LlmProfile profile = apiKeys.currentProfile();
+        if (profile == null || !profile.hasKey()) {
             throw new BusinessException("还没有配置 API Key，请在页面顶部填写", 400);
         }
-        return apiKey;
+        return profile;
     }
 
     /** 发请求。apiKey 只在这一层出现，不进入任何日志或异常消息 */
-    private HttpResponse<String> postJson(String requestBody, String apiKey) {
+    private HttpResponse<String> postJson(String requestBody, LlmProfile profile) {
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(stripTrailingSlash(props.baseUrl()) + "/chat/completions"))
+                .uri(URI.create(stripTrailingSlash(profile.baseUrl()) + "/chat/completions"))
                 .timeout(Duration.ofSeconds(props.timeoutSeconds()))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + profile.apiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                 .build();
         try {
@@ -161,12 +163,12 @@ public class OpenAiCompatExtractor implements Extractor {
             throw new BusinessException("调用模型被中断", 504);
         } catch (IOException e) {
             // 注意：不能把 request 内容带进异常，里面有 Authorization
-            throw new BusinessException("连不上模型服务（" + props.baseUrl() + "）："
+            throw new BusinessException("连不上模型服务（" + profile.baseUrl() + "）："
                     + e.getClass().getSimpleName() + "，检查网络或代理设置", 504);
         }
     }
 
-    private ExtractionResult parse(String responseBody, long latencyMs) {
+    private ExtractionResult parse(String responseBody, long latencyMs, String model) {
         JsonNode root;
         try {
             root = MAPPER.readTree(responseBody);
@@ -190,14 +192,13 @@ public class OpenAiCompatExtractor implements Extractor {
         JsonNode usage = root.path("usage").path("total_tokens");
         Integer tokens = usage.isNumber() ? usage.asInt() : null;
 
-        // 日志只记元信息：不打 prompt、不打 base64、不打 Key
         log.info("抽取完成 model={} {}ms tokens={} docType={} confidence={}",
-                props.model(), latencyMs, tokens, fact.docType(), fact.confidence());
+                model, latencyMs, tokens, fact.docType(), fact.confidence());
 
-        return new ExtractionResult(fact, props.model(), latencyMs, tokens);
+        return new ExtractionResult(fact, model, latencyMs, tokens);
     }
 
-    private Map<String, Object> payload(String dataUrl) {
+    private Map<String, Object> payload(String dataUrl, String model) {
         Map<String, Object> textPart = new LinkedHashMap<>();
         textPart.put("type", "text");
         textPart.put("text", prompt);
@@ -211,7 +212,7 @@ public class OpenAiCompatExtractor implements Extractor {
         message.put("content", List.of(textPart, imagePart));
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", props.model());
+        body.put("model", model);
         body.put("temperature", 0);
         body.put("max_tokens", MAX_TOKENS);
         body.put("messages", List.of(message));
@@ -220,18 +221,16 @@ public class OpenAiCompatExtractor implements Extractor {
 
     /**
      * 把上游错误翻译成用户能采取行动的提示。
-     * <p>401 和 404 在用户眼里长得一样，但原因完全不同（Key 错 vs 模型名错），
-     * 混在一起提示会让人跑去重新注册一个 Key。
      */
     private BusinessException classify(int status, String body) {
         String hint = switch (status) {
             case 401 -> "API Key 无效或已失效，检查是否复制完整";
             case 402, 403 -> "账户余额不足，或没有开通这个模型";
-            case 404 -> "模型名不存在，或接口地址不对（当前模型：" + props.model() + "）";
+            case 404 -> "模型名不存在，或接口地址不对";
             case 429 -> "请求过于频繁，等 30 秒再试";
             default -> "模型服务返回异常";
         };
-        log.warn("LLM 调用失败 status={} model={} resp={}", status, props.model(), brief(body));
+        log.warn("LLM 调用失败 status={} resp={}", status, brief(body));
         int code = (status >= 400 && status < 500) ? status : 502;
         return new BusinessException(hint + "（HTTP " + status + "）", code);
     }

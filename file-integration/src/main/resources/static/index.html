@@ -5,1116 +5,257 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="data:,">
     <title>综测材料整理</title>
-    <style>
-        :root {
-            color-scheme: light;
-            --bg: #f5f6f8;
-            --card: #ffffff;
-            --border: #e5e7eb;
-            --text: #1f2937;
-            --muted: #6b7280;
-            --primary: #2563eb;
-            --primary-d: #1d4ed8;
-            --ok-bg: #ecfdf3;  --ok-fg: #067647;
-            --warn-bg: #fffaeb; --warn-fg: #b54708;
-            --bad-bg: #fef3f2;  --bad-fg: #b42318;
-            --radius: 10px;
-            --radius-sm: 7px;
-            --shadow: 0 1px 2px rgba(16,24,40,.05);
-        }
-        body {
-            margin: 0;
-            font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-            color: var(--text);
-            background: var(--bg);
-        }
-        .wrap { max-width: 760px; margin: 48px auto; padding: 0 24px 64px; }
-        h1 { font-size: 20px; font-weight: 650; margin: 0; }
-        h2 { font-size: 14px; font-weight: 600; margin: 0; }
-        .sub { color: var(--muted); font-size: 13px; margin: 0; line-height: 1.7; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
-        .row {
-            display: flex; justify-content: space-between; align-items: center;
-            gap: 16px; padding: 13px 18px; font-size: 14px; border-bottom: 1px solid #f0f0f0;
-        }
-        .row:last-child { border-bottom: none; }
-        .k { color: var(--muted); flex: none; }
-        .v { font-variant-numeric: tabular-nums; text-align: right; word-break: break-all; }
-        .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.6; }
-        .badge.ok   { background: var(--ok-bg);   color: var(--ok-fg); }
-        .badge.warn { background: var(--warn-bg); color: var(--warn-fg); }
-        .badge.bad  { background: var(--bad-bg);  color: var(--bad-fg); }
-        .badge.mute { background: #f2f4f7; color: var(--muted); }
-        .alert {
-            margin-top: 12px; padding: 12px 16px; font-size: 13px; line-height: 1.7;
-            background: var(--bad-bg); border: 1px solid #fecdca; border-radius: var(--radius); color: var(--bad-fg);
-            display: none;
-        }
-        .alert .t { font-weight: 600; margin-bottom: 4px; }
-        .panel { margin-top: 26px; }
-        .panel-head {
-            display: flex; justify-content: space-between; align-items: baseline;
-            gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
-        }
-        .panel-head h2 { display: flex; align-items: center; gap: 8px; }
-        .hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
-        .body { padding: 18px; }
-        .picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-        button {
-            font-size: 13px; padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer;
-            border: 1px solid var(--border); background: #fff; color: var(--text); font-family: inherit;
-            transition: background .15s, border-color .15s;
-        }
-        button:hover:not(:disabled) { background: #f9fafb; border-color: #cbd5e1; }
-        button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-        button.primary:hover:not(:disabled) { background: var(--primary-d); }
-        button:disabled { opacity: .5; cursor: default; }
-        button.mini { padding: 4px 10px; font-size: 12px; }
-        .msg { margin-top: 12px; font-size: 13px; line-height: 1.7; }
-        .msg.err { color: var(--bad-fg); }
-        .msg.good { color: var(--ok-fg); }
-        .msg.info { color: var(--muted); }
-        .state { font-size: 13px; color: #444; line-height: 1.8; }
-        footer { margin-top: 24px; font-size: 12px; color: var(--muted); line-height: 1.9; }
-        /* 版本标识：排查"页面没更新"时一眼看出加载的是哪一版 */
-        footer .build { color: #9aa3af; font-size: 11.5px; }
-        .hd { display: flex; align-items: center; gap: 14px; margin: 8px 0 28px; }
-        .logo {
-            width: 42px; height: 42px; border-radius: 10px; background: var(--primary); color: #fff;
-            display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex: none;
-        }
-        .hd h1 { font-size: 20px; font-weight: 650; }
-        .hd .sub { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
-        /* 表单字段 */
-        .field { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
-        .field label { font-size: 12px; color: var(--muted); }
-        .field input, .field select {
-            font-size: 13px; padding: 7px 10px; border: 1px solid #d0d5dd;
-            border-radius: var(--radius-sm); font-family: inherit; background: #fff;
-            transition: border-color .15s, box-shadow .15s;
-        }
-        .field input:focus, .field select:focus {
-            outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.15);
-        }
-        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
-        /* 模型配置卡片列表（CC-SWITCH 式：多套配置 + 启用切换） */
-        .p-card {
-            display: flex; align-items: center; gap: 12px; padding: 12px 14px;
-            border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff;
-        }
-        .p-card + .p-card { margin-top: 8px; }
-        .p-card.on { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
-        .p-main { flex: 1; min-width: 0; }
-        .p-name { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .p-meta { font-size: 12px; color: var(--muted); margin-top: 3px; word-break: break-all; }
-        .p-actions { display: flex; gap: 6px; flex: none; }
-        .sep { border: none; border-top: 1px solid #f0f0f0; margin: 16px 0 4px; }
-        .form-title { font-size: 13px; font-weight: 600; margin-top: 8px; color: var(--text); }
-        .empty { font-size: 13px; color: var(--muted); padding: 6px 2px 2px; }
-
-        /* ── 上传区 ─────────────────────────────────────────── */
-        .zone {
-            border: 1.5px dashed #cbd5e1; border-radius: var(--radius);
-            padding: 26px 18px; text-align: center; transition: border-color .15s, background .15s;
-        }
-        .zone:hover, .zone.over { border-color: var(--primary); background: #f5f8ff; }
-        .zone-t { font-size: 14px; }
-        .zone-s { font-size: 12px; color: var(--muted); margin-top: 6px; }
-        .link { color: var(--primary); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-
-        /* ── 材料队列卡片 ───────────────────────────────────── */
-        .f-item { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 10px; overflow: hidden; }
-        .f-item.ok  { border-left: 3px solid #12b76a; }
-        .f-item.err { border-left: 3px solid #f04438; }
-        .f-item.run { border-left: 3px solid var(--primary); }
-        .f-head { display: flex; align-items: center; gap: 10px; padding: 11px 13px; cursor: pointer; }
-        .f-head:hover { background: #fafbfc; }
-        .f-no { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
-        .f-main { flex: 1; min-width: 0; }
-        .f-name {
-            font-size: 13.5px; font-weight: 600;
-            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .f-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
-        .chev { color: var(--muted); font-size: 10px; transition: transform .15s; flex: none; }
-        .f-item.open .chev { transform: rotate(180deg); }
-        .f-body { display: none; padding: 2px 13px 13px; border-top: 1px solid #f0f0f0; }
-        .f-item.open .f-body { display: block; }
-        table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
-        th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #f4f5f7; vertical-align: top; }
-        th { width: 118px; color: var(--muted); font-weight: 400; padding-top: 8px; }
-        td { word-break: break-word; }
-        .page-title { margin-top: 14px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
-
-        /* 内联可编辑字段：看起来还是表格，点进去才变输入框 */
-        input.fi {
-            width: 100%; box-sizing: border-box; border: 1px solid transparent; background: transparent;
-            font: inherit; color: inherit; padding: 4px 6px; border-radius: 5px; font-family: inherit;
-            transition: border-color .15s, background .15s, box-shadow .15s;
-        }
-        input.fi:hover { border-color: var(--border); background: #fff; }
-        input.fi:focus {
-            outline: none; border-color: var(--primary); background: #fff;
-            box-shadow: 0 0 0 3px rgba(37,99,235,.12);
-        }
-        input.fi.empty { color: #b0b7c3; }
-
-        /* ── 待确认清单 ─────────────────────────────────────── */
-        .iss { display: flex; gap: 14px; align-items: flex-start; padding: 11px 0; border-bottom: 1px solid #f0f0f0; }
-        .iss:last-child { border-bottom: none; }
-        .iss-main { flex: 1; min-width: 0; }
-        .iss-t { font-size: 13px; font-weight: 600; }
-        .iss-h { font-size: 12px; color: var(--warn-fg); margin-top: 3px; line-height: 1.65; }
-        /* 必须带上 input 前缀：input.fi 的 width:100% 优先级更高，否则会把左侧文字挤成一列 */
-        .iss input.fi { width: 190px; flex: none; border-color: #d0d5dd; background: #fff; }
-        .iss.done .iss-t { color: var(--muted); }
-        .iss.done .iss-t::after { content: ' 已确认'; font-size: 11px; color: var(--ok-fg); font-weight: 400; }
-        .iss.done .iss-h { color: var(--ok-fg); }
-        .iss.done input.fi { border-color: transparent; background: #f9fafb; }
-
-        /* 扫描完成后的总览条 */
-        .sum { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 12px; }
-        .sum b { color: var(--text); font-variant-numeric: tabular-nums; }
-        @media (max-width: 600px) {
-            .wrap { padding: 0 16px 48px; }
-            .row { flex-wrap: wrap; }
-            .grid2 { grid-template-columns: 1fr; }
-            .iss { flex-direction: column; gap: 6px; }
-            .iss input.fi { width: 100%; }
-        }
-    </style>
+    <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div class="wrap">
-    <header class="hd">
-        <div class="logo">综</div>
-        <div>
-            <h1>综测材料整理</h1>
-            <p class="sub">本地运行 · 材料不上传 · 仅证书图片发往你配置的模型</p>
-        </div>
-    </header>
+<div class="app">
 
-    <div class="card">
-        <div class="row"><span class="k">服务</span><span class="badge ok">已启动</span></div>
-        <div class="row"><span class="k">监听地址</span><span class="v">127.0.0.1:<span id="port">-</span></span></div>
-        <div class="row"><span class="k">规则配置</span><span class="badge warn" id="rules">读取中…</span></div>
-        <div class="row"><span class="k">视觉模型</span><span class="badge warn" id="llm">读取中…</span></div>
-    </div>
-
-    <div class="alert" id="alert">
-        <div class="t">配置有问题</div>
-        <div id="alert-body"></div>
-    </div>
-
-    <!-- ① 我的信息：填一次，全部材料统一采用 -->
-    <div class="panel">
-        <div class="panel-head">
-            <h2>① 我的信息</h2>
-            <span class="hint">填一次 · 所有材料统一采用这里的姓名，不靠模型去读</span>
-        </div>
-        <div class="card">
-            <div class="body">
-                <div class="grid2">
-                    <div class="field">
-                        <label>姓名（必填）</label>
-                        <input type="text" id="ow-name" placeholder="例如：廖展滨" maxlength="20">
-                    </div>
-                    <div class="field">
-                        <label>学号</label>
-                        <input type="text" id="ow-sid" placeholder="例如：2024xxxxxx" maxlength="30">
-                    </div>
-                    <div class="field">
-                        <label>班级</label>
-                        <input type="text" id="ow-class" placeholder="例如：计科 2 班" maxlength="40">
-                    </div>
-                    <div class="field">
-                        <label>学院</label>
-                        <input type="text" id="ow-college" placeholder="例如：计算机学院" maxlength="40">
-                    </div>
-                    <div class="field">
-                        <label>年级</label>
-                        <input type="text" id="ow-grade" placeholder="例如：2024 级" maxlength="20">
-                    </div>
-                </div>
-                <div class="picker">
-                    <button class="primary" id="ow-save">保存</button>
-                </div>
-                <div class="msg info" id="ow-msg">姓名填上以后，材料里读到的姓名跟它对不上时会提示你确认（可能是别人的材料混进来了）。</div>
+    <!-- ══ 左侧：步骤导航 + 环境状态 ═══════════════════════════ -->
+    <aside class="side">
+        <div class="brand">
+            <div class="mark">综</div>
+            <div class="brand-txt">
+                <div class="bt">综测材料整理</div>
+                <div class="bs">本地运行 · 材料不外传</div>
             </div>
         </div>
-    </div>
 
-    <!-- ② 模型配置 -->
-    <div class="panel">
-        <div class="panel-head">
-            <h2>② 模型配置</h2>
-            <span class="hint">用自己的 Key（BYOK）· 可存多套，随时切换</span>
+        <nav class="steps" id="steps" aria-label="步骤导航"></nav>
+
+        <div class="side-foot">
+            <div class="hl"><span class="hl-k">监听</span><span class="hl-v">127.0.0.1:<span id="port">-</span></span></div>
+            <div class="hl"><span class="hl-k">规则</span><span class="hl-v" id="rules" data-state="warn">读取中…</span></div>
+            <div class="hl"><span class="hl-k">模型</span><span class="hl-v" id="llm" data-state="warn">读取中…</span></div>
+            <div class="build">界面版本 2026-10-28e</div>
         </div>
-        <div class="card">
-            <div class="body">
-                <!-- 已保存的配置列表（JS 渲染） -->
-                <div id="profiles"><div class="state">读取中…</div></div>
+    </aside>
 
-                <div class="picker">
-                    <button class="primary" id="prof-new">＋ 新增配置</button>
-                    <button id="key-clear-all" style="display:none">全部清除</button>
-                </div>
+    <!-- ══ 右侧：工作区 ═════════════════════════════════════════ -->
+    <main class="main">
+        <div class="main-inner">
 
-                <!-- 新增 / 编辑表单，默认收起 -->
-                <div id="key-form" style="display:none">
-                    <hr class="sep">
-                    <div class="form-title" id="form-title">新增配置</div>
-
-                    <div class="field">
-                        <label>名称（可选，方便区分）</label>
-                        <input type="text" id="key-name" placeholder="例如：我的 DeepSeek" maxlength="40">
-                    </div>
-                    <div class="field">
-                        <label>厂商</label>
-                        <select id="key-provider">
-                            <option value="deepseek">DeepSeek</option>
-                            <option value="doubao">豆包（火山方舟）</option>
-                            <option value="openai">OpenAI</option>
-                            <option value="claude">Claude（经 OpenRouter）</option>
-                            <option value="custom">自定义 / 兼容网关</option>
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label>API Key</label>
-                        <input type="password" id="key-input" placeholder="粘贴 API Key" autocomplete="off" spellcheck="false">
-                        <span class="hint" id="key-input-hint" style="display:none">留空表示不修改已保存的 Key</span>
-                    </div>
-                    <div class="field">
-                        <label>接口地址 baseUrl</label>
-                        <input type="text" id="key-baseurl" placeholder="选厂商自动带出，可改">
-                    </div>
-                    <div class="field">
-                        <label>模型名 model</label>
-                        <input type="text" id="key-model" placeholder="选厂商自动带出，可改">
-                    </div>
-                    <div class="picker">
-                        <button class="primary" id="key-save">保存并测试</button>
-                        <button id="key-cancel">取消</button>
-                    </div>
-                    <div class="msg info" id="key-msg"></div>
-                </div>
-
-                <div class="msg info" id="key-note">
-                    Key 会用 Windows DPAPI 加密保存在本机，只有当前 Windows 用户能解开。保存时会立刻测一次连通性，测不通就自动回滚，不会留下坏配置。
-                </div>
+            <div class="alert" id="alert">
+                <div class="t">配置有问题</div>
+                <div id="alert-body"></div>
             </div>
-        </div>
-    </div>
 
-    <!-- ③ 上传材料 -->
-    <div class="panel">
-        <div class="panel-head">
-            <h2>③ 上传材料</h2>
-            <span class="hint">可一次选多份 · 逐份识别，扫完统一确认</span>
-        </div>
-        <div class="card">
-            <div class="body">
-                <div class="zone" id="zone">
-                    <div class="zone-t">把证书照片 / PDF 拖到这里，或 <span class="link" id="pick">点击选择文件</span></div>
-                    <div class="zone-s">支持 jpg / png / webp、pdf、doc / docx（Word 需本机装 LibreOffice）· 单个 ≤ 10MB</div>
-                    <input type="file" id="file" multiple hidden
-                           accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp">
+            <!-- ① 我的信息 -->
+            <section class="sec" id="sec-owner" data-no="1" data-name="我的信息">
+                <header class="sec-head">
+                    <div class="sec-no">1</div>
+                    <div>
+                        <h2>我的信息</h2>
+                        <p class="sec-sub">填一次，所有材料统一采用这里的姓名，不靠模型去读</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="grid2">
+                            <div class="field">
+                                <label>姓名（必填）</label>
+                                <input type="text" id="ow-name" placeholder="例如：廖展滨" maxlength="20">
+                            </div>
+                            <div class="field">
+                                <label>学号</label>
+                                <input type="text" id="ow-sid" placeholder="例如：2024xxxxxx" maxlength="30">
+                            </div>
+                            <div class="field">
+                                <label>班级</label>
+                                <input type="text" id="ow-class" placeholder="例如：计科 2 班" maxlength="40">
+                            </div>
+                            <div class="field">
+                                <label>学院</label>
+                                <input type="text" id="ow-college" placeholder="例如：计算机学院" maxlength="40">
+                            </div>
+                            <div class="field">
+                                <label>年级</label>
+                                <input type="text" id="ow-grade" placeholder="例如：2024 级" maxlength="20">
+                            </div>
+                        </div>
+                        <div class="picker">
+                            <button class="primary" id="ow-save">保存</button>
+                        </div>
+                        <div class="msg" id="ow-msg">姓名填上以后，材料里读到的姓名跟它对不上时会提示你确认（可能是别人的材料混进来了）。</div>
+                    </div>
                 </div>
-                <div class="picker">
-                    <button class="primary" id="btn" disabled>开始识别</button>
-                    <button id="btn-clear" disabled>清空队列</button>
-                    <span class="hint" id="queue-hint"></span>
+            </section>
+
+            <!-- ② 模型配置 -->
+            <section class="sec" id="sec-llm" data-no="2" data-name="模型配置">
+                <header class="sec-head">
+                    <div class="sec-no">2</div>
+                    <div>
+                        <h2>模型配置</h2>
+                        <p class="sec-sub">用自己的 Key（BYOK）· 可存多套，随时切换</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body">
+                        <div id="profiles"><div class="state">读取中…</div></div>
+
+                        <div class="picker">
+                            <button class="primary" id="prof-new">＋ 新增配置</button>
+                            <button id="key-clear-all" style="display:none">全部清除</button>
+                        </div>
+
+                        <div id="key-form" style="display:none">
+                            <hr class="sep">
+                            <div class="form-title" id="form-title">新增配置</div>
+
+                            <div class="field">
+                                <label>名称（可选，方便区分）</label>
+                                <input type="text" id="key-name" placeholder="例如：我的 DeepSeek" maxlength="40">
+                            </div>
+                            <div class="field">
+                                <label>厂商</label>
+                                <select id="key-provider">
+                                    <option value="deepseek">DeepSeek</option>
+                                    <option value="doubao">豆包（火山方舟）</option>
+                                    <option value="openai">OpenAI</option>
+                                    <option value="claude">Claude（经 OpenRouter）</option>
+                                    <option value="custom">自定义 / 兼容网关</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>API Key</label>
+                                <input type="password" id="key-input" placeholder="粘贴 API Key" autocomplete="off" spellcheck="false">
+                                <span class="hint" id="key-input-hint" style="display:none">留空表示不修改已保存的 Key</span>
+                            </div>
+                            <div class="field">
+                                <label>接口地址 baseUrl</label>
+                                <input type="text" id="key-baseurl" placeholder="选厂商自动带出，可改">
+                            </div>
+                            <div class="field">
+                                <label>模型名 model</label>
+                                <input type="text" id="key-model" placeholder="选厂商自动带出，可改">
+                            </div>
+                            <div class="picker">
+                                <button class="primary" id="key-save">保存并测试</button>
+                                <button id="key-cancel">取消</button>
+                            </div>
+                            <div class="msg" id="key-msg"></div>
+                        </div>
+
+                        <div class="msg" id="key-note">
+                            Key 会用 Windows DPAPI 加密保存在本机，只有当前 Windows 用户能解开。保存时会立刻测一次连通性，测不通就自动回滚，不会留下坏配置。
+                        </div>
+                    </div>
                 </div>
-                <div class="msg info" id="msg">先选文件。识别过程中别关页面——每份 5 到 30 秒。</div>
-                <div id="queue"></div>
-                <div class="sum" id="sum" style="display:none"></div>
-            </div>
-        </div>
-    </div>
+            </section>
 
-    <!-- ④ 待确认清单 -->
-    <div class="panel" id="review-panel" style="display:none">
-        <div class="panel-head">
-            <h2>④ 待确认 <span class="badge warn" id="review-count">0 项</span></h2>
-            <span class="hint">模型不确定或没读到的字段 · 改完即最终结果</span>
-        </div>
-        <div class="card">
-            <div class="body" id="review"></div>
-        </div>
-    </div>
+            <!-- ③ 上传材料 -->
+            <section class="sec" id="sec-upload" data-no="3" data-name="上传材料">
+                <header class="sec-head">
+                    <div class="sec-no">3</div>
+                    <div>
+                        <h2>上传材料</h2>
+                        <p class="sec-sub">可一次选多份 · 逐份识别，扫完统一确认</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="zone" id="zone">
+                            <div class="zone-t">把证书照片 / PDF 拖到这里，或 <span class="link" id="pick">点击选择文件</span></div>
+                            <div class="zone-s">支持 jpg / png / webp、pdf、doc / docx（Word 需本机装 LibreOffice）· 单个 ≤ 10MB</div>
+                            <input type="file" id="file" multiple hidden
+                                   accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp">
+                        </div>
+                        <div class="picker">
+                            <button class="primary" id="btn" disabled>开始识别</button>
+                            <button id="btn-clear" disabled>清空队列</button>
+                            <span class="hint" id="queue-hint"></span>
+                        </div>
+                        <div class="msg" id="msg">先选文件。识别过程中别关页面——每份 5 到 30 秒。</div>
+                        <div id="queue"></div>
+                        <div class="sum" id="sum" style="display:none"></div>
+                    </div>
+                </div>
+            </section>
 
-    <footer>
-        M1 阶段：验证「视觉模型能不能看懂证书」。识别结果还不是最终分数，算分要靠规则引擎。
-        <br>关闭本页后程序会自动退出，下次双击 exe 再打开即可。
-        <br><span class="build">界面版本 2026-10-28b（批量 + 待确认）</span>
-    </footer>
+            <!-- ④ 待确认 -->
+            <section class="sec" id="sec-review" data-no="4" data-name="待确认" style="display:none">
+                <header class="sec-head">
+                    <div class="sec-no">4</div>
+                    <div>
+                        <h2>待确认 <span class="badge warn" id="review-count">0 项</span></h2>
+                        <p class="sec-sub">模型不确定或没读到的字段 · 改完即最终结果</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body" id="review"></div>
+                </div>
+            </section>
+
+            <!-- ⑤ 算分 -->
+            <section class="sec" id="sec-score" data-no="5" data-name="算分">
+                <header class="sec-head">
+                    <div class="sec-no">5</div>
+                    <div>
+                        <h2>算分</h2>
+                        <p class="sec-sub">材料 → 细则 → 分数 · 每条都能追到依据</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="grid2">
+                            <div class="field">
+                                <label>评测学年</label>
+                                <select id="sc-year"></select>
+                            </div>
+                            <div class="field">
+                                <label>当前细则</label>
+                                <input type="text" id="sc-rule" readonly
+                                       style="background:var(--surface-2);color:var(--ink-3)">
+                            </div>
+                        </div>
+
+                        <div id="sc-inputs"></div>
+
+                        <div class="picker">
+                            <button class="primary" id="sc-btn">开始算分</button>
+                            <span class="hint" id="sc-hint"></span>
+                        </div>
+                        <div class="msg" id="sc-msg">
+                            基础分 / 互评分这类数字证书上没有，需要你手填。加分会自动从材料里算。
+                        </div>
+                        <div id="sc-result"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ⑥ 导出 -->
+            <section class="sec" id="sec-export" data-no="6" data-name="导出">
+                <header class="sec-head">
+                    <div class="sec-no">6</div>
+                    <div>
+                        <h2>导出</h2>
+                        <p class="sec-sub">按学院规格打包：五个文件夹 + 综测评定表</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="picker" style="margin-top:0">
+                            <button id="ex-preview">预览打包结构</button>
+                            <button class="primary" id="ex-btn">导出 zip</button>
+                            <span class="hint" id="ex-hint"></span>
+                        </div>
+                        <div class="msg" id="ex-msg">
+                            先在上面算一次分，再导出。压缩包按「学号_姓名」命名，需先在「我的信息」里填学号。
+                        </div>
+                        <div id="ex-result"></div>
+                    </div>
+                </div>
+            </section>
+
+            <footer class="foot">
+                <b>算分结果一律是「待复核草稿」</b>，最终分值以班委审核为准。识别只把证书图片发往你配置的模型，
+                其他数据不离开本机。关闭本页后程序会自动退出。
+            </footer>
+
+        </div>
+    </main>
 </div>
 
-<script>
-    // 字段顺序即展示顺序。第三个参数 = 只读（布尔值改成文本可编辑容易把类型搞坏）
-    const FIELDS = [
-        ['doc_type', '材料类型', false],
-        ['person_name', '姓名', false],
-        ['is_multi_person', '含他人姓名', true],
-        ['issuer', '颁发单位', false],
-        ['date', '签发日期', false],
-        ['period_start', '任期起', false],
-        ['period_end', '任期止', false],
-        ['title', '名称', false],
-        ['achievement', '获奖等级', false],
-        ['level_hint', '级别（弱判断）', false],
-        ['category_guess', '类别（弱判断）', false],
-        ['evidence_quote', '原文摘录', false],
-        ['confidence', '置信度', false]
-    ];
-
-    // 厂商默认值，与后端 ProviderDefaults 保持一致（页面选厂商时自动带出，仅是预填，
-    // 模型名可改成任意「支持图像输入」的模型，不写死）
-    const PROVIDER_DEFAULTS = {
-        deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-flash' },
-        doubao:   { baseUrl: 'https://ark.cn-beijing.volces.com/api/v1', model: 'doubao-vision-pro-32k' },
-        openai:   { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-        claude:   { baseUrl: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-3.5-sonnet' },
-        custom:   { baseUrl: '', model: '' }
-    };
-
-    const $ = id => document.getElementById(id);
-    $('port').textContent = location.port || '80';
-
-    function esc(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-
-    function setMsg(el, cls, text) {
-        el.className = 'msg ' + cls;
-        el.textContent = text;
-    }
-
-    function fmtSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
-        return (bytes / 1024 / 1024).toFixed(1) + ' MB';
-    }
-
-    // ── 全局状态 ────────────────────────────────────────────────────────
-    const state = {
-        profile: { name: '', studentId: '', className: '', college: '', grade: '' },
-        items: [],          // {key, file, status, error, data, open}
-        seq: 0,
-        running: false,
-        resolved: new Set() // `${key}:${page}:${field}` —— 用户手动确认过的字段
-    };
-
-    // ── 状态卡片 ────────────────────────────────────────────────────────
-    async function refreshStatus() {
-        try {
-            const resp = await fetch('/api/status');
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const d = await resp.json();
-
-            const rules = d.rules || [];
-            const rulesEl = $('rules');
-            if (rules.length > 0) {
-                rulesEl.textContent = rules.length + ' 份 · ' + rules.map(r => r.college).join('、');
-                rulesEl.className = 'badge ok';
-            } else {
-                rulesEl.textContent = '未加载';
-                rulesEl.className = 'badge warn';
-            }
-
-            const llm = d.llm || {};
-            const llmEl = $('llm');
-            if (llm.configured) {
-                llmEl.textContent = '已就绪 · ' + (llm.name || llm.masked || '');
-                llmEl.className = 'badge ok';
-            } else if (llm.masked) {
-                llmEl.textContent = 'Key 已保存，待验证';
-                llmEl.className = 'badge warn';
-            } else {
-                llmEl.textContent = '未配置';
-                llmEl.className = 'badge warn';
-            }
-
-            const problems = d.problems || [];
-            if (problems.length > 0) {
-                $('alert').style.display = 'block';
-                $('alert-body').innerHTML = problems.map(p => '<div>· ' + esc(p) + '</div>').join('');
-                if (rules.length === 0) rulesEl.className = 'badge bad';
-            }
-        } catch (e) {
-            $('rules').textContent = '接口不可用';
-            $('rules').className = 'badge bad';
-        }
-    }
-
-    // ── ① 我的信息 ──────────────────────────────────────────────────────
-    async function loadProfile() {
-        try {
-            const r = await fetch('/api/profile');
-            const payload = await r.json().catch(() => ({}));
-            const d = payload.data || {};
-            state.profile = d;
-            $('ow-name').value = d.name || '';
-            $('ow-sid').value = d.studentId || '';
-            $('ow-class').value = d.className || '';
-            $('ow-college').value = d.college || '';
-            $('ow-grade').value = d.grade || '';
-            if (!d.hasName) {
-                setMsg($('ow-msg'), 'info', '还没填姓名。填上以后所有材料统一采用它，模型读错字也不影响结果。');
-            } else {
-                setMsg($('ow-msg'), 'good', '已保存。材料里的姓名统一用「' + d.name + '」。');
-            }
-        } catch (e) {
-            setMsg($('ow-msg'), 'err', '读取本人信息失败：' + e);
-        }
-    }
-
-    $('ow-save').addEventListener('click', async () => {
-        const nameNew = $('ow-name').value.trim();
-        if (!nameNew) {
-            setMsg($('ow-msg'), 'err', '姓名必填——它是判断"这份材料是不是你的"的唯一依据。');
-            $('ow-name').focus();
-            return;
-        }
-        const body = {
-            name: nameNew,
-            studentId: $('ow-sid').value.trim(),
-            className: $('ow-class').value.trim(),
-            college: $('ow-college').value.trim(),
-            grade: $('ow-grade').value.trim()
-        };
-        $('ow-save').disabled = true;
-        try {
-            const r = await fetch('/api/profile', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const payload = await r.json().catch(() => ({}));
-            if (!r.ok) {
-                setMsg($('ow-msg'), 'err', payload.message || ('保存失败（HTTP ' + r.status + '）'));
-                return;
-            }
-            state.profile = payload.data || body;
-
-            // 已经扫过的材料：直接把姓名刷新成新值，不用重扫（省时间省钱）
-            let patched = 0;
-            state.items.forEach(it => {
-                const pages = (it.data && it.data.pages) || [];
-                pages.forEach((p, i) => {
-                    if (p.fact && p.fact.person_name !== nameNew) {
-                        p.fact.person_name = nameNew;
-                        patched++;
-                    }
-                    // 姓名相关的歧义项现在都统一了，视为已确认
-                    (p.issues || []).forEach(iss => {
-                        if (iss.field === 'person_name') {
-                            state.resolved.add(it.key + ':' + i + ':person_name');
-                        }
-                    });
-                });
-            });
-            renderQueue();
-            renderReview();
-            setMsg($('ow-msg'), 'good', '已保存。' + (patched > 0
-                ? '已同步更新 ' + patched + ' 处已识别材料的姓名，不用重新扫描。'
-                : '之后扫的材料都会用这个名字。'));
-        } catch (e) {
-            setMsg($('ow-msg'), 'err', '请求失败：' + e);
-        } finally {
-            $('ow-save').disabled = false;
-        }
-    });
-
-    // ── ② 模型配置：列表 / 新增 / 编辑 / 启用 / 删除（CC-SWITCH 式） ────
-    let editingId = null;      // null = 新增模式；有值 = 正在编辑该配置
-    let lastProfiles = [];
-
-    async function refreshProfiles() {
-        const resp = await fetch('/api/llm');
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const payload = await resp.json();
-        lastProfiles = (payload.data && payload.data.profiles) || [];
-        renderProfiles(lastProfiles);
-    }
-
-    function renderProfiles(profiles) {
-        const box = $('profiles');
-        if (!profiles.length) {
-            box.innerHTML = '<div class="empty">还没有配置。点下面「＋ 新增配置」，选厂商、粘贴 Key 就行。</div>';
-            $('key-clear-all').style.display = 'none';
-            return;
-        }
-        box.innerHTML = profiles.map(p => {
-            const on = p.active ? '<span class="badge ok">启用中</span>' : '';
-            const actions =
-                (p.active ? '' : '<button class="mini" data-act="use" data-id="' + esc(p.id) + '">启用</button>')
-                + '<button class="mini" data-act="edit" data-id="' + esc(p.id) + '">编辑</button>'
-                + '<button class="mini" data-act="del" data-id="' + esc(p.id) + '">删除</button>';
-            return '<div class="p-card' + (p.active ? ' on' : '') + '">'
-                + '<div class="p-main">'
-                + '<div class="p-name">' + esc(p.name) + on + '</div>'
-                + '<div class="p-meta">' + esc(p.providerLabel || p.provider) + ' · ' + esc(p.model)
-                + ' · ' + esc(p.masked || '') + '<br>' + esc(p.baseUrl) + '</div>'
-                + '</div>'
-                + '<div class="p-actions">' + actions + '</div>'
-                + '</div>';
-        }).join('');
-        $('key-clear-all').style.display = 'inline-block';
-    }
-
-    function openForm(id) {
-        editingId = id || null;
-        const p = id ? lastProfiles.find(x => x.id === id) : null;
-        $('form-title').textContent = p ? '编辑配置' : '新增配置';
-        $('key-name').value = p ? p.name : '';
-        $('key-provider').value = p ? (p.provider || 'custom') : 'deepseek';
-        $('key-input').value = '';
-        $('key-input').placeholder = p ? '留空表示不修改已保存的 Key' : '粘贴 API Key';
-        $('key-input-hint').style.display = p ? 'inline' : 'none';
-        const dft = PROVIDER_DEFAULTS[$('key-provider').value] || { baseUrl: '', model: '' };
-        $('key-baseurl').value = p ? p.baseUrl : dft.baseUrl;
-        $('key-model').value = p ? p.model : dft.model;
-        setMsg($('key-msg'), 'info', p ? ('当前 Key：' + (p.masked || '未保存') + '（留空则不修改）') : '');
-        $('key-form').style.display = 'block';
-        $('key-name').focus();
-    }
-
-    function closeForm() {
-        editingId = null;
-        $('key-form').style.display = 'none';
-        $('key-msg').textContent = '';
-        ['key-name', 'key-input', 'key-baseurl', 'key-model'].forEach(k => { $(k).value = ''; });
-    }
-
-    async function refreshAll() {
-        await refreshStatus();
-        await refreshProfiles().catch(() => {});
-    }
-
-    $('key-provider').addEventListener('change', () => {
-        const d = PROVIDER_DEFAULTS[$('key-provider').value] || { baseUrl: '', model: '' };
-        $('key-baseurl').value = d.baseUrl;
-        $('key-model').value = d.model;
-    });
-
-    $('prof-new').addEventListener('click', () => openForm(null));
-    $('key-cancel').addEventListener('click', closeForm);
-
-    $('profiles').addEventListener('click', async (e) => {
-        const btn = e.target.closest('button[data-act]');
-        if (!btn) return;
-        const id = btn.getAttribute('data-id');
-        const act = btn.getAttribute('data-act');
-        const note = $('key-note');
-
-        if (act === 'edit') {
-            openForm(id);
-            return;
-        }
-        if (act === 'use') {
-            btn.disabled = true;
-            try {
-                const r = await fetch('/api/llm/active', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id })
-                });
-                const payload = await r.json().catch(() => ({}));
-                if (!r.ok) {
-                    setMsg(note, 'err', payload.message || ('切换失败（HTTP ' + r.status + '）'));
-                    return;
-                }
-                await refreshAll();
-                setMsg(note, 'good', '已切换启用配置。');
-            } catch (err) {
-                setMsg(note, 'err', '请求失败：' + err);
-            } finally {
-                btn.disabled = false;
-            }
-            return;
-        }
-        if (act === 'del') {
-            if (!confirm('删除这份配置？Key 会一起从本机删除，不可恢复。')) return;
-            try {
-                const r = await fetch('/api/llm/key?id=' + encodeURIComponent(id), { method: 'DELETE' });
-                const payload = await r.json().catch(() => ({}));
-                if (!r.ok) {
-                    setMsg(note, 'err', payload.message || ('删除失败（HTTP ' + r.status + '）'));
-                    return;
-                }
-                if (editingId === id) closeForm();
-                await refreshAll();
-                setMsg(note, 'info', '已删除该配置。');
-            } catch (err) {
-                setMsg(note, 'err', '请求失败：' + err);
-            }
-        }
-    });
-
-    $('key-save').addEventListener('click', async () => {
-        const msgEl = $('key-msg');
-        const apiKey = $('key-input').value.trim();
-        if (!apiKey && !editingId) {
-            setMsg(msgEl, 'err', '先粘贴 Key。');
-            return;
-        }
-        const model = $('key-model').value.trim();
-        if (!model) {
-            setMsg(msgEl, 'err', '模型名不能为空。');
-            return;
-        }
-        const body = {
-            provider: $('key-provider').value,
-            name: $('key-name').value.trim(),
-            baseUrl: $('key-baseurl').value.trim(),
-            model: model
-        };
-        if (editingId) body.id = editingId;
-        if (apiKey) body.apiKey = apiKey;      // 编辑时留空 = 不改原 Key
-
-        $('key-save').disabled = true;
-        $('key-cancel').disabled = true;
-        setMsg(msgEl, 'info', '正在测试连通性…通常 1 到 3 秒。');
-
-        try {
-            const resp = await fetch('/api/llm/key', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const payload = await resp.json().catch(() => ({}));
-            if (!resp.ok) {
-                setMsg(msgEl, 'err', payload.message || ('保存失败（HTTP ' + resp.status + '）'));
-                return;
-            }
-            closeForm();
-            await refreshAll();
-            setMsg($('key-note'), 'good', '已保存并验证通过，当前启用这份配置。');
-        } catch (err) {
-            setMsg(msgEl, 'err', '请求失败：' + err);
-        } finally {
-            $('key-save').disabled = false;
-            $('key-cancel').disabled = false;
-        }
-    });
-
-    $('key-clear-all').addEventListener('click', async () => {
-        if (!confirm('清除本机保存的全部模型配置？所有 Key 都会被删除，不可恢复。')) return;
-        try {
-            const r = await fetch('/api/llm/key', { method: 'DELETE' });
-            if (!r.ok) {
-                setMsg($('key-note'), 'err', '清除失败（HTTP ' + r.status + '）');
-                return;
-            }
-            closeForm();
-            await refreshAll();
-            setMsg($('key-note'), 'info', '已清除全部配置。');
-        } catch (err) {
-            setMsg($('key-note'), 'err', '请求失败：' + err);
-        }
-    });
-
-    // ── ③ 上传材料：多选 / 拖拽 → 队列 → 逐份识别 ──────────────────────
-
-    const ACCEPT_EXT = /\.(pdf|docx?|jpe?g|png|webp)$/i;
-
-    function addFiles(fileList) {
-        const skipped = [];
-        Array.from(fileList || []).forEach(f => {
-            if (!ACCEPT_EXT.test(f.name)) { skipped.push(f.name + '（格式不支持）'); return; }
-            if (f.size > 10 * 1024 * 1024) { skipped.push(f.name + '（超过 10MB）'); return; }
-            const dup = state.items.some(x => x.file.name === f.name && x.file.size === f.size);
-            if (dup) { skipped.push(f.name + '（重复，已忽略）'); return; }
-            state.items.push({
-                key: ++state.seq,
-                file: f,
-                status: 'pending',
-                error: null,
-                data: null,
-                open: false
-            });
-        });
-        if (skipped.length) setMsg($('msg'), 'err', '已跳过：' + skipped.join('、'));
-        else setMsg($('msg'), 'info', '已加入 ' + state.items.length + ' 份材料。点「开始识别」逐个扫描。');
-        renderQueue();
-    }
-
-    $('pick').addEventListener('click', () => $('file').click());
-    $('zone').addEventListener('click', e => {
-        if (e.target.id !== 'pick') $('file').click();
-    });
-    $('file').addEventListener('change', e => {
-        addFiles(e.target.files);
-        e.target.value = '';       // 允许重复选同一个文件
-    });
-
-    ['dragenter', 'dragover'].forEach(ev =>
-        $('zone').addEventListener(ev, e => { e.preventDefault(); $('zone').classList.add('over'); }));
-    ['dragleave', 'drop'].forEach(ev =>
-        $('zone').addEventListener(ev, e => { e.preventDefault(); $('zone').classList.remove('over'); }));
-    $('zone').addEventListener('drop', e => {
-        if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
-    });
-
-    $('btn-clear').addEventListener('click', () => {
-        if (state.running) return;
-        state.items = [];
-        state.resolved.clear();
-        $('sum').style.display = 'none';
-        setMsg($('msg'), 'info', '队列已清空。');
-        renderQueue();
-        renderReview();
-    });
-
-    $('btn').addEventListener('click', async () => {
-        if (state.running) return;
-        const pending = state.items.filter(x => x.status === 'pending');
-        if (!pending.length) {
-            setMsg($('msg'), 'err', '队列里没有待识别的材料。');
-            return;
-        }
-        state.running = true;
-        $('btn').disabled = true;
-        $('btn-clear').disabled = true;
-        $('btn').textContent = '识别中…';
-
-        let done = 0;
-        const startedAll = Date.now();
-        for (const it of pending) {
-            it.status = 'running';
-            renderQueue();
-            setMsg($('msg'), 'info', '正在识别第 ' + (done + 1) + ' / ' + pending.length
-                + ' 份：' + it.file.name + '（单份通常 5 到 30 秒，别关页面）');
-            try {
-                const form = new FormData();
-                form.append('file', it.file);
-                const resp = await fetch('/api/extract', { method: 'POST', body: form });
-                const payload = await resp.json().catch(() => ({}));
-                if (!resp.ok) throw new Error((payload && payload.message) || ('HTTP ' + resp.status));
-                it.data = payload.data || {};
-                it.status = 'done';
-                // 有问题就自动展开，让用户一眼看到要改什么
-                it.open = countIssuesOf(it) > 0;
-            } catch (e) {
-                it.status = 'error';
-                it.error = (e && e.message) ? e.message : String(e);
-                it.open = true;
-            }
-            done++;
-            renderQueue();
-            renderReview();
-        }
-
-        state.running = false;
-        $('btn').textContent = '开始识别';
-        updateButtons();
-        const secs = ((Date.now() - startedAll) / 1000).toFixed(1);
-        const failed = state.items.filter(x => x.status === 'error').length;
-        const left = unresolvedCount();
-        setMsg($('msg'), failed ? 'err' : (left ? 'info' : 'good'),
-            '全部扫完，用时 ' + secs + ' 秒。'
-            + (failed ? failed + ' 份失败，展开看原因。' : '')
-            + (left ? '有 ' + left + ' 项需要你确认，见下方「待确认」。' : '没有需要确认的字段。'));
-    });
-
-    function updateButtons() {
-        const hasPending = state.items.some(x => x.status === 'pending');
-        $('btn').disabled = state.running || !hasPending;
-        $('btn-clear').disabled = state.running || state.items.length === 0;
-        const total = state.items.length;
-        $('queue-hint').textContent = total
-            ? '共 ' + total + ' 份 · ' + fmtSize(state.items.reduce((s, x) => s + x.file.size, 0))
-              + (hasPending ? ' · 待识别 ' + state.items.filter(x => x.status === 'pending').length + ' 份' : '')
-            : '';
-    }
-
-    function countIssuesOf(it) {
-        let n = 0;
-        ((it.data && it.data.pages) || []).forEach((p, i) => {
-            (p.issues || []).forEach(iss => {
-                if (!state.resolved.has(it.key + ':' + i + ':' + iss.field)) n++;
-            });
-        });
-        return n;
-    }
-
-    function valueOf(fact, field) {
-        const v = fact[field];
-        if (typeof v === 'boolean') return v ? '是' : '否';
-        return v == null ? '' : String(v);
-    }
-
-    function renderQueue() {
-        const box = $('queue');
-        if (!state.items.length) {
-            box.innerHTML = '';
-            updateButtons();
-            updateSum();
-            return;
-        }
-        box.innerHTML = state.items.map((it, idx) => {
-            const sel = it.status;
-            let badge = '<span class="badge mute">待识别</span>';
-            if (sel === 'running') badge = '<span class="badge warn">识别中…</span>';
-            if (sel === 'error') badge = '<span class="badge bad">失败</span>';
-            if (sel === 'done') {
-                const n = countIssuesOf(it);
-                badge = n
-                    ? '<span class="badge warn">' + n + ' 项待确认</span>'
-                    : '<span class="badge ok">无问题</span>';
-            }
-            const meta = [fmtSize(it.file.size)];
-            if (sel === 'done' && it.data) {
-                if (it.data.pages) meta.push(it.data.pages.length + ' 页');
-                if (it.data.latencyMs) meta.push((it.data.latencyMs / 1000).toFixed(1) + ' 秒');
-                if (it.data.totalTokens != null) meta.push(it.data.totalTokens + ' tokens');
-                if (it.data.note) meta.push(it.data.note);
-            }
-            if (sel === 'error') meta.push(it.error || '');
-
-            return '<div class="f-item ' + (sel === 'done' ? (countIssuesOf(it) ? 'run' : 'ok')
-                    : sel === 'error' ? 'err' : sel === 'running' ? 'run' : '')
-                + (it.open ? ' open' : '') + '" data-key="' + it.key + '">'
-                + '<div class="f-head" data-role="toggle" data-key="' + it.key + '">'
-                + '<span class="f-no">' + String(idx + 1).padStart(2, '0') + '</span>'
-                + '<div class="f-main">'
-                + '<div class="f-name">' + esc(it.file.name) + '</div>'
-                + '<div class="f-meta">' + esc(meta.join(' · ')) + '</div>'
-                + '</div>'
-                + badge
-                + '<span class="chev">▼</span>'
-                + '</div>'
-                + '<div class="f-body">' + bodyOf(it) + '</div>'
-                + '</div>';
-        }).join('');
-        updateButtons();
-        updateSum();
-    }
-
-    function bodyOf(it) {
-        if (it.status === 'pending') return '<div class="msg info">还没开始识别。</div>';
-        if (it.status === 'running') return '<div class="msg info">识别中，请稍等…</div>';
-        if (it.status === 'error') return '<div class="msg err">识别失败：' + esc(it.error) + '</div>';
-
-        const pages = (it.data && it.data.pages) || [];
-        if (!pages.length) return '<div class="msg err">没有识别出任何页面。</div>';
-
-        let html = '';
-        pages.forEach((p, pi) => {
-            if (pages.length > 1) html += '<div class="page-title">第 ' + (pi + 1) + ' 页</div>';
-            html += factTable(it.key, pi, p.fact || {});
-        });
-        return html;
-    }
-
-    function factTable(key, page, fact) {
-        let html = '<table><tbody>';
-        for (const [field, label, ro] of FIELDS) {
-            const val = valueOf(fact, field);
-            if (ro) {
-                html += '<tr><th>' + label + '</th><td>'
-                    + (val === '' ? '<span style="color:#b0b7c3">—</span>' : esc(val)) + '</td></tr>';
-            } else {
-                html += '<tr><th>' + label + '</th><td>'
-                    + '<input class="fi' + (val === '' ? ' empty' : '') + '" type="text"'
-                    + ' data-key="' + key + '" data-page="' + page + '" data-field="' + field + '"'
-                    + ' value="' + esc(val) + '"'
-                    + (val === '' ? ' placeholder="（未识别到）"' : '') + '>'
-                    + '</td></tr>';
-            }
-        }
-        return html + '</tbody></table>';
-    }
-
-    // 折叠/展开
-    $('queue').addEventListener('click', e => {
-        const head = e.target.closest('[data-role="toggle"]');
-        if (!head) return;
-        const key = Number(head.getAttribute('data-key'));
-        const it = state.items.find(x => x.key === key);
-        if (!it) return;
-        it.open = !it.open;
-        const card = $('queue').querySelector('.f-item[data-key="' + key + '"]');
-        if (card) card.classList.toggle('open', it.open);
-    });
-
-    // 字段编辑：change 而不是 input，避免每敲一个字就回写
-    $('queue').addEventListener('change', e => {
-        const input = e.target.closest('input.fi');
-        if (!input) return;
-        applyEdit(Number(input.getAttribute('data-key')),
-            Number(input.getAttribute('data-page')),
-            input.getAttribute('data-field'),
-            input.value.trim());
-    });
-
-    $('review').addEventListener('change', e => {
-        const input = e.target.closest('input.fi');
-        if (!input) return;
-        applyEdit(Number(input.getAttribute('data-key')),
-            Number(input.getAttribute('data-page')),
-            input.getAttribute('data-field'),
-            input.value.trim());
-    });
-
-    /**
-     * 回写一个字段，并同步所有同坐标的输入框。
-     * 注意：这里刻意不做整块重渲染——change 在 blur 时触发，
-     * 如果重建 DOM，用户刚点进去的下一个输入框会失去焦点。
-     */
-    function applyEdit(key, page, field, value) {
-        const it = state.items.find(x => x.key === key);
-        if (!it || !it.data || !it.data.pages || !it.data.pages[page]) return;
-        const fact = it.data.pages[page].fact;
-        if (!fact) return;
-        fact[field] = value === '' ? null : value;
-
-        document.querySelectorAll(
-            '[data-key="' + key + '"][data-page="' + page + '"][data-field="' + field + '"]'
-        ).forEach(el => {
-            if (el.value !== value) el.value = value;
-            el.classList.toggle('empty', value === '');
-        });
-
-        state.resolved.add(key + ':' + page + ':' + field);
-        markIssueDone(key, page, field);
-        refreshCounts();
-    }
-
-    function markIssueDone(key, page, field) {
-        document.querySelectorAll(
-            '.iss[data-key="' + key + '"][data-page="' + page + '"][data-field="' + field + '"]'
-        ).forEach(el => el.classList.add('done'));
-    }
-
-    // 只更新计数与徽章，不重建 DOM
-    function refreshCounts() {
-        const left = unresolvedCount();
-        $('review-count').textContent = left + ' 项';
-        $('review-count').className = 'badge ' + (left ? 'warn' : 'ok');
-        state.items.forEach(it => {
-            if (it.status !== 'done') return;
-            const card = $('queue').querySelector('.f-item[data-key="' + it.key + '"]');
-            if (!card) return;
-            const n = countIssuesOf(it);
-            const badge = card.querySelector('.f-head .badge');
-            if (badge) {
-                badge.textContent = n ? n + ' 项待确认' : '无问题';
-                badge.className = 'badge ' + (n ? 'warn' : 'ok');
-            }
-            card.classList.toggle('run', n > 0);
-            card.classList.toggle('ok', n === 0);
-        });
-        updateSum();
-    }
-
-    function unresolvedCount() {
-        let n = 0;
-        state.items.forEach(it => {
-            ((it.data && it.data.pages) || []).forEach((p, i) => {
-                (p.issues || []).forEach(iss => {
-                    if (!state.resolved.has(it.key + ':' + i + ':' + iss.field)) n++;
-                });
-            });
-        });
-        return n;
-    }
-
-    // ── ④ 待确认清单 ────────────────────────────────────────────────────
-
-    const REASON_LABEL = {
-        auto_filled: '已自动补全',
-        name_mismatch: '姓名不一致',
-        missing: '没读到',
-        low_confidence: '可信度低'
-    };
-
-    function renderReview() {
-        const rows = [];
-        state.items.forEach((it, idx) => {
-            ((it.data && it.data.pages) || []).forEach((p, pi) => {
-                (p.issues || []).forEach(iss => {
-                    rows.push({ it, idx, pi, iss, done: state.resolved.has(it.key + ':' + pi + ':' + iss.field) });
-                });
-            });
-        });
-
-        const panel = $('review-panel');
-        if (!rows.length) {
-            panel.style.display = 'none';
-            $('review').innerHTML = '';
-            return;
-        }
-        panel.style.display = 'block';
-
-        const left = rows.filter(r => !r.done).length;
-        $('review-count').textContent = left + ' 项';
-        $('review-count').className = 'badge ' + (left ? 'warn' : 'ok');
-
-        $('review').innerHTML =
-            '<div class="hint" style="margin-bottom:6px">共 ' + rows.length + ' 项提示，其中 '
-            + left + ' 项还没确认。左边是材料·字段，右边直接改，改完自动标记为已确认。</div>'
-            + rows.map(r => {
-                const fact = (r.it.data.pages[r.pi] || {}).fact || {};
-                const cur = valueOf(fact, r.iss.field);
-                const pageTag = ((r.it.data.pages || []).length > 1) ? '· 第 ' + (r.pi + 1) + ' 页' : '';
-                return '<div class="iss' + (r.done ? ' done' : '') + '"'
-                    + ' data-key="' + r.it.key + '" data-page="' + r.pi
-                    + '" data-field="' + esc(r.iss.field) + '">'
-                    + '<div class="iss-main">'
-                    + '<div class="iss-t">材料 ' + (r.idx + 1) + ' ' + pageTag + ' · '
-                    + esc(r.iss.label || r.iss.field)
-                    + ' <span class="badge mute">' + esc(REASON_LABEL[r.iss.reason] || r.iss.reason) + '</span></div>'
-                    + '<div class="iss-h">' + esc(r.iss.hint || '') + '</div>'
-                    + '</div>'
-                    + '<input class="fi iss-in' + (cur === '' ? ' empty' : '') + '" type="text"'
-                    + ' data-key="' + r.it.key + '" data-page="' + r.pi
-                    + '" data-field="' + esc(r.iss.field) + '"'
-                    + ' value="' + esc(cur) + '"'
-                    + (cur === '' ? ' placeholder="填上正确值"' : '') + '>'
-                    + '</div>';
-            }).join('');
-    }
-
-    function updateSum() {
-        const doneItems = state.items.filter(x => x.status === 'done');
-        if (!doneItems.length) { $('sum').style.display = 'none'; return; }
-        let pages = 0, ms = 0, tokens = 0, tokenKnown = false;
-        doneItems.forEach(it => {
-            pages += (it.data.pages || []).length;
-            ms += it.data.latencyMs || 0;
-            if (it.data.totalTokens != null) { tokens += it.data.totalTokens; tokenKnown = true; }
-        });
-        $('sum').style.display = 'flex';
-        $('sum').innerHTML =
-            '<span>已完成 <b>' + doneItems.length + '</b> 份 / <b>' + pages + '</b> 页</span>'
-            + '<span>耗时 <b>' + (ms / 1000).toFixed(1) + '</b> 秒</span>'
-            + '<span>用量 <b>' + (tokenKnown ? tokens.toLocaleString() : '未知') + '</b> tokens</span>'
-            + '<span>待确认 <b>' + unresolvedCount() + '</b> 项</span>';
-    }
-
-    // ── 页面生命周期：开着报心跳，关了通知后端退出 ──────────────────
-    // 正常关页 → 后端宽限几秒后退出进程；刷新会立刻恢复心跳所以不会误杀；
-    // 切到后台只上报 visible=false，不靠心跳超时（浏览器会限流后台标签的定时器）
-    (function pageLifecycle() {
-        const beat = () => {
-            const visible = document.visibilityState === 'visible';
-            fetch('/api/beat?visible=' + visible, { method: 'POST', keepalive: true }).catch(() => {});
-        };
-        beat();                                                    // 打开即报一次
-        setInterval(() => {
-            if (document.visibilityState === 'visible') beat();     // 后台标签不打扰
-        }, 5000);
-        document.addEventListener('visibilitychange', beat);         // 切走/切回立刻上报
-        // 关闭或刷新前通知后端；sendBeacon 在页面卸载时也能发出（fetch 会被取消）
-        window.addEventListener('pagehide', () => navigator.sendBeacon('/api/bye'));
-    })();
-
-    refreshAll();
-    loadProfile();
-</script>
+<script src="js/app.js"></script>
 </body>
 </html>

@@ -38,9 +38,18 @@ class LlmProfileTest {
     @Test
     void LlmProperties的toString同样不泄露() {
         LlmProperties props = new LlmProperties(
-                "https://api.openai.com/v1", "gpt-4o", "sk-abcdef0123456789xyz", "openai", 120, "extract-v1.txt");
+                "https://api.openai.com/v1", "gpt-4o", "sk-abcdef0123456789xyz", "openai", 120, 4000, "extract-v1.txt");
         String s = props.toString();
         assertFalse(s.contains("sk-abcdef0123456789xyz"), "LlmProperties.toString 不应含明文 Key");
         assertTrue(s.contains("****"));
+    }
+
+    @Test
+    void maxTokens缺省时给足推理余量() {
+        LlmProperties props = new LlmProperties(
+                "u", "m", null, "deepseek", 0, 0, null);
+        assertTrue(props.maxTokens() >= 4000,
+                "默认输出预算不能太小，否则推理模型的正文会被截断（实测 1500 就报'没有返回内容'）");
+        assertTrue(props.timeoutSeconds() > 0);
     }
 }

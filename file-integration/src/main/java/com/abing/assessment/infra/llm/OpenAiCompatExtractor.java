@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,7 +48,8 @@ public class OpenAiCompatExtractor implements Extractor {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    private static final int MAX_TOKENS = 1500;
+    /** 单次请求的 max_tokens 来自 llm.max-tokens；这里是"被截断后自动重试"的天花板 */
+    private static final int MAX_TOKEN_CEILING = 16000;
     private static final int PING_MAX_TOKENS = 8;
     private static final int CONNECT_TIMEOUT_SECONDS = 10;
     private static final int LOG_BODY_LIMIT = 300;
@@ -81,16 +83,35 @@ public class OpenAiCompatExtractor implements Extractor {
         LlmProfile profile = requireProfile();
 
         String dataUrl = "data:" + mimeType + ";base64," + Base64.getEncoder().encodeToString(image);
-        String requestBody = toJson(payload(dataUrl, profile.model()));
 
-        long startedAt = System.currentTimeMillis();
-        HttpResponse<String> response = postJson(requestBody, profile);
-        long latencyMs = System.currentTimeMillis() - startedAt;
+        // 推理类模型（如 deepseek-flash）会先消耗 token 在思考上，预算给小了正文根本轮不到，
+        // 表现为 content 为空 + finish_reason=length。这里被截断就自动翻倍重试一次，
+        // 用户不需要知道 max_tokens 是什么。
+        int budget = props.maxTokens();
+        for (int attempt = 1; ; attempt++) {
+            String requestBody = toJson(payload(dataUrl, profile.model(), budget));
 
-        if (response.statusCode() != 200) {
-            throw classify(response.statusCode(), response.body());
+            long startedAt = System.currentTimeMillis();
+            HttpResponse<String> response = postJson(requestBody, profile);
+            long latencyMs = System.currentTimeMillis() - startedAt;
+
+            if (response.statusCode() != 200) {
+                throw classify(response.statusCode(), response.body());
+            }
+            try {
+                return parse(response.body(), latencyMs, profile.model());
+            } catch (TruncatedOutput e) {
+                int next = Math.min(budget * 2, MAX_TOKEN_CEILING);
+                // 最多试 3 次（1500→3000→6000，或 4000→8000→16000）：
+                // 实测 deepseek-flash 思考很长，只翻一倍不一定够
+                if (attempt >= 3 || next == budget) {
+                    throw e.toBusinessException();
+                }
+                log.warn("模型输出被 max_tokens={} 截断（推理模型会先花在思考上），自动放大到 {} 重试",
+                        budget, next);
+                budget = next;
+            }
         }
-        return parse(response.body(), latencyMs, profile.model());
     }
 
     /**
@@ -176,16 +197,34 @@ public class OpenAiCompatExtractor implements Extractor {
             throw new BusinessException("模型返回的不是 JSON，无法解析", 502);
         }
 
-        String content = root.path("choices").path(0).path("message").path("content").asText("");
+        JsonNode choice = root.path("choices").path(0);
+        JsonNode message = choice.path("message");
+        String finishReason = choice.path("finish_reason").asText("");
+        boolean truncated = "length".equalsIgnoreCase(finishReason);
+
+        // content 可能是字符串，也可能是 [{type:"text",text:"..."}] 数组（部分兼容网关这样返回）
+        String content = textOf(message.path("content"));
+
         if (content.isBlank()) {
-            throw new BusinessException("模型没有返回内容，可能是图片无法识别或触发了内容审查", 502);
+            // 抽不出东西时唯一的现场记录：必须留下 finish_reason 和原始响应，
+            // 否则只剩一句"没有返回内容"，分不清是被截断、被审核、还是模型读不了图。
+            log.warn("模型返回空内容 finish_reason={} message字段={} 原始响应={}",
+                    finishReason.isEmpty() ? "(空)" : finishReason, fieldNames(message), brief(responseBody, 800));
+            if (truncated) {
+                throw new TruncatedOutput(finishReason);
+            }
+            throw new BusinessException(emptyContentHint(finishReason), 502);
         }
 
         ExtractedFact fact;
         try {
             fact = MAPPER.readValue(firstJsonObject(content), ExtractedFact.class);
         } catch (JsonProcessingException e) {
-            log.warn("模型输出无法解析为 JSON，前 {} 字：{}", LOG_BODY_LIMIT, brief(content));
+            log.warn("模型输出无法解析为 JSON（finish_reason={}），前 {} 字：{}",
+                    finishReason.isEmpty() ? "(空)" : finishReason, LOG_BODY_LIMIT, brief(content));
+            if (truncated) {
+                throw new TruncatedOutput(finishReason);
+            }
             throw new BusinessException("模型输出不是合法 JSON，可重试一次；若持续失败请换模型或调整 prompt", 502);
         }
 
@@ -198,7 +237,7 @@ public class OpenAiCompatExtractor implements Extractor {
         return new ExtractionResult(fact, model, latencyMs, tokens);
     }
 
-    private Map<String, Object> payload(String dataUrl, String model) {
+    private Map<String, Object> payload(String dataUrl, String model, int maxTokens) {
         Map<String, Object> textPart = new LinkedHashMap<>();
         textPart.put("type", "text");
         textPart.put("text", prompt);
@@ -214,9 +253,22 @@ public class OpenAiCompatExtractor implements Extractor {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
         body.put("temperature", 0);
-        body.put("max_tokens", MAX_TOKENS);
+        body.put("max_tokens", maxTokens);
         body.put("messages", List.of(message));
         return body;
+    }
+
+    /** 输出被 max_tokens 截断：不是用户的错，调用方会自动放大预算重试一次 */
+    private static final class TruncatedOutput extends RuntimeException {
+
+        TruncatedOutput(String finishReason) {
+            super(finishReason);
+        }
+
+        BusinessException toBusinessException() {
+            return new BusinessException("模型输出被 max_tokens 截断（推理模型会先把 token 花在思考上），"
+                    + "已经自动加大预算重试仍不够。建议换用非推理模型，或换一张更小更清晰的证书图", 502);
+        }
     }
 
     /**
@@ -278,9 +330,57 @@ public class OpenAiCompatExtractor implements Extractor {
     }
 
     private static String brief(String s) {
+        return brief(s, LOG_BODY_LIMIT);
+    }
+
+    private static String brief(String s, int limit) {
         if (s == null) {
             return "";
         }
-        return s.length() <= LOG_BODY_LIMIT ? s : s.substring(0, LOG_BODY_LIMIT) + "…";
+        return s.length() <= limit ? s : s.substring(0, limit) + "…";
+    }
+
+    /** 取文本：兼容字符串、content 数组、缺失节点三种形态 */
+    private static String textOf(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return "";
+        }
+        if (node.isTextual()) {
+            return node.asText("");
+        }
+        if (node.isArray()) {
+            StringBuilder sb = new StringBuilder();
+            for (JsonNode part : node) {
+                String t = part.path("text").asText("");
+                if (!t.isBlank()) {
+                    sb.append(t);
+                }
+            }
+            return sb.toString();
+        }
+        return node.asText("");
+    }
+
+    /** message 里到底有哪些字段，用于判断"模型是不是把内容放别处了" */
+    private static String fieldNames(JsonNode message) {
+        if (message == null || !message.isObject()) {
+            return "[]";
+        }
+        List<String> names = new ArrayList<>();
+        message.fieldNames().forEachRemaining(names::add);
+        return names.toString();
+    }
+
+    /** 把"内容为空"翻译成能指导用户下一步动作的话 */
+    private static String emptyContentHint(String finishReason) {
+        if ("length".equalsIgnoreCase(finishReason)) {
+            return "模型的输出被 max_tokens 截断了（推理类模型会先消耗在思考上），"
+                    + "可以在配置里把 max_tokens 调大，或换一个非推理模型";
+        }
+        if ("content_filter".equalsIgnoreCase(finishReason)) {
+            return "内容被模型侧的安全策略拦截了，换一张更清晰的证书图或换模型试试";
+        }
+        return "模型没有返回内容。已把原始响应写进日志（%LOCALAPPDATA%\\Assessment\\logs\\app.log），"
+                + "常见原因：这个模型不支持图像输入，或图片太大/太模糊";
     }
 }

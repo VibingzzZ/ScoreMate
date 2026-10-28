@@ -51,5 +51,7 @@ dist/
 *.env
 .env
 **/*secret*
+*.key
+llm.key
 .workbuddy/
 .docs/

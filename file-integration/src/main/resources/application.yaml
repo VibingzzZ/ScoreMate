@@ -7,6 +7,18 @@ spring:
       max-file-size: 20MB
       max-request-size: 100MB
 
+  # 静态资源不缓存。默认 Spring Boot 只给 Last-Modified、不给 Cache-Control，
+  # 浏览器走"启发式缓存"，会出现「代码/包都更新了，页面还是旧的」——实测踩过一次：
+  # 服务端返回的 index.html 已是新版，浏览器却拿缓存渲染旧界面，F5 也刷不出来。
+  # 单机工具多下 20 KB 零成本，换"改了立刻生效"。
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-store: true
+          no-cache: true
+          must-revalidate: true
+
 # 零外部服务：不连数据库、不连 Redis。状态全部落在工作目录（artifacts/），见架构文档 §3.1
 server:
   address: 127.0.0.1     # 只监听回环地址。不写这行 = 监听 0.0.0.0 = 同网段任何人都能打开你的界面
@@ -16,16 +28,31 @@ server:
 # 启动完成后自动打开浏览器。本程序没有窗口，不打开的话用户会觉得"点了没反应"
 assessment:
   open-browser: true
+  # 页面关掉后自动退出进程（单机工具：页面没了，后台留着只会占端口、让人以为没关干净）
+  exit-on-page-close: true
+  # 关闭页面后的宽限期：留给"刷新页面"和"其他标签页还在用"的余量。
+  # 太短会把刷新误判成关闭，太长用户会觉得关了还赖着不走。
+  page-close-grace-seconds: 8
+  # 兜底：浏览器崩溃/被强杀（没来得及发关闭信号）时，可见状态下这么久没心跳才退。
+  # 设大（600 秒）是为了不误杀"笔记本休眠再唤醒"——休眠期间定时器不跑，唤醒后会像失联很久。
+  visible-timeout-seconds: 600
 
 # ── 视觉模型接入 ──────────────────────────────────────────────
-# 必须选「支持图像输入」的模型。deepseek-chat 是纯文本模型，读不了图片，
-# 拿它跑会得到"我看不到图像"，容易误判成 prompt 写错。
+# ⚠ 模型名绝不写死：任何「支持图像输入」的模型都能用（云端或本机 Ollama），
+#   在页面上改就行。这里只是还没有保存档案时的引导默认值。
+#   纯文本模型读不了图片，拿它跑会得到"我看不到图像"，容易误判成 prompt 写错。
+#   （2026-10 核实：DeepSeek 现行视觉模型是 deepseek-flash；旧名 deepseek-chat 已过时。
+#     其它可选示例：qwen-vl-max / glm-4v / doubao-vision-* —— 以厂商文档为准。）
 llm:
-  base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-  model: qwen-vl-max
+  base-url: https://api.deepseek.com/v1
+  model: deepseek-flash
   # ⚠ 只从环境变量读。绝不要把真实 Key 写在这个文件里（会被提交进 git）
   api-key: ${LLM_API_KEY:}
   timeout-seconds: 120
+  # 单次输出预算。推理类模型（如 deepseek-flash）会先花 token 在思考上，
+  # 给小了会出现 content 为空 + finish_reason=length（页面报"没有返回内容"）。
+  # 被截断时代码会自动翻倍重试一次，所以这里保持一个够用的默认值即可。
+  max-tokens: 4000
   # 相对 configs/prompt/ 的路径，改 prompt 不用重新打包
   prompt-file: extract-v1.txt
 

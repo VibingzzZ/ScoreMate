@@ -58,6 +58,10 @@ public class StatusController {
         llm.put("describe", extractor.describe());
         llm.put("masked", apiKeys.masked());
         llm.put("source", apiKeys.source());
+        var activeProfile = apiKeys.currentProfile();
+        llm.put("name", activeProfile == null ? null : activeProfile.displayName());
+        llm.put("model", activeProfile == null ? null : activeProfile.model());
+        llm.put("profileCount", apiKeys.profiles().size());
         body.put("llm", llm);
 
         return body;

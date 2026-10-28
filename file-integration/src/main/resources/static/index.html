@@ -80,6 +80,8 @@
         td.null { color: #aaa; }
         .meta { margin-top: 12px; font-size: 12px; color: var(--muted); }
         footer { margin-top: 24px; font-size: 12px; color: var(--muted); line-height: 1.9; }
+        /* 版本标识：排查"页面没更新"时一眼看出加载的是哪一版 */
+        footer .build { color: #9aa3af; font-size: 11.5px; }
         .hd { display: flex; align-items: center; gap: 14px; margin: 8px 0 28px; }
         .logo {
             width: 42px; height: 42px; border-radius: 10px; background: var(--primary); color: #fff;
@@ -104,6 +106,21 @@
             outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.15);
         }
         .page-title { margin-top: 14px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+        /* 模型配置卡片列表（CC-SWITCH 式：多套配置 + 启用切换） */
+        .p-card {
+            display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff;
+        }
+        .p-card + .p-card { margin-top: 8px; }
+        .p-card.on { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
+        .p-main { flex: 1; min-width: 0; }
+        .p-name { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .p-meta { font-size: 12px; color: var(--muted); margin-top: 3px; word-break: break-all; }
+        .p-actions { display: flex; gap: 6px; flex: none; }
+        button.mini { padding: 4px 10px; font-size: 12px; }
+        .sep { border: none; border-top: 1px solid #f0f0f0; margin: 16px 0 4px; }
+        .form-title { font-size: 13px; font-weight: 600; margin-top: 8px; color: var(--text); }
+        .empty { font-size: 13px; color: var(--muted); padding: 6px 2px 2px; }
         @media (max-width: 560px) {
             .wrap { padding: 0 16px 48px; }
             .row { flex-wrap: wrap; }
@@ -134,40 +151,60 @@
 
     <div class="panel">
         <div class="panel-head">
-            <h2>模型 API Key</h2>
-            <span class="hint">用自己的 Key（BYOK）</span>
+            <h2>模型配置</h2>
+            <span class="hint">用自己的 Key（BYOK）· 可存多套，随时切换</span>
         </div>
         <div class="card">
             <div class="body">
-                <div class="state" id="key-state">读取中…</div>
-                <div class="field">
-                    <label>厂商</label>
-                    <select id="key-provider">
-                        <option value="deepseek">DeepSeek</option>
-                        <option value="doubao">豆包（火山方舟）</option>
-                        <option value="openai">OpenAI</option>
-                        <option value="claude">Claude（经 OpenRouter）</option>
-                        <option value="custom">自定义 / 兼容网关</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>API Key</label>
-                    <input type="password" id="key-input" placeholder="粘贴 API Key" autocomplete="off" spellcheck="false">
-                </div>
-                <div class="field">
-                    <label>接口地址 baseUrl</label>
-                    <input type="text" id="key-baseurl" placeholder="选厂商自动带出，可改">
-                </div>
-                <div class="field">
-                    <label>模型名 model</label>
-                    <input type="text" id="key-model" placeholder="选厂商自动带出，可改">
-                </div>
+                <!-- 已保存的配置列表（JS 渲染） -->
+                <div id="profiles"><div class="state">读取中…</div></div>
+
                 <div class="picker">
-                    <button class="primary" id="key-save">保存并测试</button>
-                    <button id="key-clear">清除</button>
+                    <button class="primary" id="prof-new">＋ 新增配置</button>
+                    <button id="key-clear-all" style="display:none">全部清除</button>
                 </div>
-                <div class="msg info" id="key-msg">
-                    Key 会用 Windows DPAPI 加密保存在本机，只有当前 Windows 用户能解开。保存时会立刻测一次连通性，测不通就不会留下。
+
+                <!-- 新增 / 编辑表单，默认收起 -->
+                <div id="key-form" style="display:none">
+                    <hr class="sep">
+                    <div class="form-title" id="form-title">新增配置</div>
+
+                    <div class="field">
+                        <label>名称（可选，方便区分）</label>
+                        <input type="text" id="key-name" placeholder="例如：我的 DeepSeek" maxlength="40">
+                    </div>
+                    <div class="field">
+                        <label>厂商</label>
+                        <select id="key-provider">
+                            <option value="deepseek">DeepSeek</option>
+                            <option value="doubao">豆包（火山方舟）</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="claude">Claude（经 OpenRouter）</option>
+                            <option value="custom">自定义 / 兼容网关</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>API Key</label>
+                        <input type="password" id="key-input" placeholder="粘贴 API Key" autocomplete="off" spellcheck="false">
+                        <span class="hint" id="key-input-hint" style="display:none">留空表示不修改已保存的 Key</span>
+                    </div>
+                    <div class="field">
+                        <label>接口地址 baseUrl</label>
+                        <input type="text" id="key-baseurl" placeholder="选厂商自动带出，可改">
+                    </div>
+                    <div class="field">
+                        <label>模型名 model</label>
+                        <input type="text" id="key-model" placeholder="选厂商自动带出，可改">
+                    </div>
+                    <div class="picker">
+                        <button class="primary" id="key-save">保存并测试</button>
+                        <button id="key-cancel">取消</button>
+                    </div>
+                    <div class="msg info" id="key-msg"></div>
+                </div>
+
+                <div class="msg info" id="key-note">
+                    Key 会用 Windows DPAPI 加密保存在本机，只有当前 Windows 用户能解开。保存时会立刻测一次连通性，测不通就自动回滚，不会留下坏配置。
                 </div>
             </div>
         </div>
@@ -192,6 +229,8 @@
 
     <footer>
         M1 阶段：验证「视觉模型能不能看懂证书」。识别结果还不是最终分数，算分要靠规则引擎。
+        <br>关闭本页后程序会自动退出，下次双击 exe 再打开即可。
+        <br><span class="build">界面版本 2026-10-28</span>
     </footer>
 </div>
 
@@ -212,9 +251,10 @@
         ['confidence', '置信度']
     ];
 
-    // 厂商默认值，与后端 ProviderDefaults 保持一致（页面选厂商时自动带出，可改）
+    // 厂商默认值，与后端 ProviderDefaults 保持一致（页面选厂商时自动带出，仅是预填，
+    // 模型名可改成任意「支持图像输入」的模型，不写死）
     const PROVIDER_DEFAULTS = {
-        deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+        deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-flash' },
         doubao:   { baseUrl: 'https://ark.cn-beijing.volces.com/api/v1', model: 'doubao-vision-pro-32k' },
         openai:   { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
         claude:   { baseUrl: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-3.5-sonnet' },
@@ -253,7 +293,7 @@
             const llm = d.llm || {};
             const llmEl = $('llm');
             if (llm.configured) {
-                llmEl.textContent = '已就绪 · ' + (llm.masked || '');
+                llmEl.textContent = '已就绪 · ' + (llm.name || llm.masked || '');
                 llmEl.className = 'badge ok';
             } else if (llm.masked) {
                 llmEl.textContent = 'Key 已保存，待验证';
@@ -261,22 +301,6 @@
             } else {
                 llmEl.textContent = '未配置';
                 llmEl.className = 'badge warn';
-            }
-
-            const stateEl = $('key-state');
-            // 回填厂商 / 地址 / 模型，方便用户直接改
-            if (llm.provider) $('key-provider').value = llm.provider;
-            if (llm.baseUrl) $('key-baseurl').value = llm.baseUrl;
-            if (llm.model) $('key-model').value = llm.model;
-
-            if (llm.masked) {
-                const src = llm.source === 'saved' ? '已加密保存在本机' : '来自环境变量 LLM_API_KEY';
-                const who = (llm.provider ? llm.provider + ' · ' : '') + (llm.model || '');
-                stateEl.innerHTML = '当前：<b>' + esc(who) + '</b> · ' + esc(src)
-                    + '<br><span class="hint">' + esc(llm.masked) + '</span>';
-            } else {
-                stateEl.innerHTML = '当前：<b>未设置</b><br><span class="hint">'
-                    + esc(llm.describe || '') + '</span>';
             }
 
             const problems = d.problems || [];
@@ -291,63 +315,192 @@
         }
     }
 
+    // ── 模型配置：列表 / 新增 / 编辑 / 启用 / 删除（CC-SWITCH 式） ────────
+    let editingId = null;      // null = 新增模式；有值 = 正在编辑该配置
+    let lastProfiles = [];
+
+    async function refreshProfiles() {
+        const resp = await fetch('/api/llm');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const payload = await resp.json();
+        lastProfiles = (payload.data && payload.data.profiles) || [];
+        renderProfiles(lastProfiles);
+    }
+
+    function renderProfiles(profiles) {
+        const box = $('profiles');
+        if (!profiles.length) {
+            box.innerHTML = '<div class="empty">还没有配置。点下面「＋ 新增配置」，选厂商、粘贴 Key 就行。</div>';
+            $('key-clear-all').style.display = 'none';
+            return;
+        }
+        box.innerHTML = profiles.map(p => {
+            const on = p.active ? '<span class="badge ok">启用中</span>' : '';
+            const actions =
+                (p.active ? '' : '<button class="mini" data-act="use" data-id="' + esc(p.id) + '">启用</button>')
+                + '<button class="mini" data-act="edit" data-id="' + esc(p.id) + '">编辑</button>'
+                + '<button class="mini" data-act="del" data-id="' + esc(p.id) + '">删除</button>';
+            return '<div class="p-card' + (p.active ? ' on' : '') + '">'
+                + '<div class="p-main">'
+                + '<div class="p-name">' + esc(p.name) + on + '</div>'
+                + '<div class="p-meta">' + esc(p.providerLabel || p.provider) + ' · ' + esc(p.model)
+                + ' · ' + esc(p.masked || '') + '<br>' + esc(p.baseUrl) + '</div>'
+                + '</div>'
+                + '<div class="p-actions">' + actions + '</div>'
+                + '</div>';
+        }).join('');
+        $('key-clear-all').style.display = 'inline-block';
+    }
+
+    function openForm(id) {
+        editingId = id || null;
+        const p = id ? lastProfiles.find(x => x.id === id) : null;
+        $('form-title').textContent = p ? '编辑配置' : '新增配置';
+        $('key-name').value = p ? p.name : '';
+        $('key-provider').value = p ? (p.provider || 'custom') : 'deepseek';
+        $('key-input').value = '';
+        $('key-input').placeholder = p ? '留空表示不修改已保存的 Key' : '粘贴 API Key';
+        $('key-input-hint').style.display = p ? 'inline' : 'none';
+        const dft = PROVIDER_DEFAULTS[$('key-provider').value] || { baseUrl: '', model: '' };
+        $('key-baseurl').value = p ? p.baseUrl : dft.baseUrl;
+        $('key-model').value = p ? p.model : dft.model;
+        setMsg($('key-msg'), 'info', p ? ('当前 Key：' + (p.masked || '未保存') + '（留空则不修改）') : '');
+        $('key-form').style.display = 'block';
+        $('key-name').focus();
+    }
+
+    function closeForm() {
+        editingId = null;
+        $('key-form').style.display = 'none';
+        $('key-msg').textContent = '';
+        ['key-name', 'key-input', 'key-baseurl', 'key-model'].forEach(k => { $(k).value = ''; });
+    }
+
+    async function refreshAll() {
+        await refreshStatus();
+        await refreshProfiles().catch(() => {});
+    }
+
     $('key-provider').addEventListener('change', () => {
         const d = PROVIDER_DEFAULTS[$('key-provider').value] || { baseUrl: '', model: '' };
-        if (!$('key-baseurl').value) $('key-baseurl').value = d.baseUrl;
-        if (!$('key-model').value) $('key-model').value = d.model;
+        $('key-baseurl').value = d.baseUrl;
+        $('key-model').value = d.model;
+    });
+
+    $('prof-new').addEventListener('click', () => openForm(null));
+    $('key-cancel').addEventListener('click', closeForm);
+
+    $('profiles').addEventListener('click', async (e) => {
+        const btn = e.target.closest('button[data-act]');
+        if (!btn) return;
+        const id = btn.getAttribute('data-id');
+        const act = btn.getAttribute('data-act');
+        const note = $('key-note');
+
+        if (act === 'edit') {
+            openForm(id);
+            return;
+        }
+        if (act === 'use') {
+            btn.disabled = true;
+            try {
+                const r = await fetch('/api/llm/active', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const payload = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    setMsg(note, 'err', payload.message || ('切换失败（HTTP ' + r.status + '）'));
+                    return;
+                }
+                await refreshAll();
+                setMsg(note, 'good', '已切换启用配置。');
+            } catch (err) {
+                setMsg(note, 'err', '请求失败：' + err);
+            } finally {
+                btn.disabled = false;
+            }
+            return;
+        }
+        if (act === 'del') {
+            if (!confirm('删除这份配置？Key 会一起从本机删除，不可恢复。')) return;
+            try {
+                const r = await fetch('/api/llm/key?id=' + encodeURIComponent(id), { method: 'DELETE' });
+                const payload = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    setMsg(note, 'err', payload.message || ('删除失败（HTTP ' + r.status + '）'));
+                    return;
+                }
+                if (editingId === id) closeForm();
+                await refreshAll();
+                setMsg(note, 'info', '已删除该配置。');
+            } catch (err) {
+                setMsg(note, 'err', '请求失败：' + err);
+            }
+        }
     });
 
     $('key-save').addEventListener('click', async () => {
-        const provider = $('key-provider').value;
-        const input = $('key-input');
-        const value = input.value.trim();
-        const baseUrl = $('key-baseurl').value.trim();
-        const model = $('key-model').value.trim();
         const msgEl = $('key-msg');
-        if (!value) {
+        const apiKey = $('key-input').value.trim();
+        if (!apiKey && !editingId) {
             setMsg(msgEl, 'err', '先粘贴 Key。');
             return;
         }
+        const model = $('key-model').value.trim();
+        if (!model) {
+            setMsg(msgEl, 'err', '模型名不能为空。');
+            return;
+        }
+        const body = {
+            provider: $('key-provider').value,
+            name: $('key-name').value.trim(),
+            baseUrl: $('key-baseurl').value.trim(),
+            model: model
+        };
+        if (editingId) body.id = editingId;
+        if (apiKey) body.apiKey = apiKey;      // 编辑时留空 = 不改原 Key
 
         $('key-save').disabled = true;
-        $('key-clear').disabled = true;
+        $('key-cancel').disabled = true;
         setMsg(msgEl, 'info', '正在测试连通性…通常 1 到 3 秒。');
 
         try {
             const resp = await fetch('/api/llm/key', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ provider, apiKey: value, baseUrl, model })
+                body: JSON.stringify(body)
             });
             const payload = await resp.json().catch(() => ({}));
-
             if (!resp.ok) {
-                setMsg(msgEl, 'err', (payload && payload.message) || ('保存失败（HTTP ' + resp.status + '）'));
+                setMsg(msgEl, 'err', payload.message || ('保存失败（HTTP ' + resp.status + '）'));
                 return;
             }
-            input.value = '';
-            setMsg(msgEl, 'good', '保存成功，Key 已加密存在本机，连通性正常。');
-            refreshStatus();
-        } catch (e) {
-            setMsg(msgEl, 'err', '请求失败：' + e);
+            closeForm();
+            await refreshAll();
+            setMsg($('key-note'), 'good', '已保存并验证通过，当前启用这份配置。');
+        } catch (err) {
+            setMsg(msgEl, 'err', '请求失败：' + err);
         } finally {
             $('key-save').disabled = false;
-            $('key-clear').disabled = false;
+            $('key-cancel').disabled = false;
         }
     });
 
-    $('key-clear').addEventListener('click', async () => {
-        if (!confirm('确定清除本机保存的 Key？')) return;
-        const msgEl = $('key-msg');
+    $('key-clear-all').addEventListener('click', async () => {
+        if (!confirm('清除本机保存的全部模型配置？所有 Key 都会被删除，不可恢复。')) return;
         try {
-            await fetch('/api/llm/key', { method: 'DELETE' });
-            $('key-input').value = '';
-            $('key-baseurl').value = '';
-            $('key-model').value = '';
-            setMsg(msgEl, 'info', '已清除本机保存的 Key。');
-            refreshStatus();
-        } catch (e) {
-            setMsg(msgEl, 'err', '清除失败：' + e);
+            const r = await fetch('/api/llm/key', { method: 'DELETE' });
+            if (!r.ok) {
+                setMsg($('key-note'), 'err', '清除失败（HTTP ' + r.status + '）');
+                return;
+            }
+            closeForm();
+            await refreshAll();
+            setMsg($('key-note'), 'info', '已清除全部配置。');
+        } catch (err) {
+            setMsg($('key-note'), 'err', '请求失败：' + err);
         }
     });
 
@@ -416,7 +569,24 @@
         return html + '</tbody></table>';
     }
 
-    refreshStatus();
+    // ── 页面生命周期：开着报心跳，关了通知后端退出 ──────────────────
+    // 正常关页 → 后端宽限几秒后退出进程；刷新会立刻恢复心跳所以不会误杀；
+    // 切到后台只上报 visible=false，不靠心跳超时（浏览器会限流后台标签的定时器）
+    (function pageLifecycle() {
+        const beat = () => {
+            const visible = document.visibilityState === 'visible';
+            fetch('/api/beat?visible=' + visible, { method: 'POST', keepalive: true }).catch(() => {});
+        };
+        beat();                                                    // 打开即报一次
+        setInterval(() => {
+            if (document.visibilityState === 'visible') beat();     // 后台标签不打扰
+        }, 5000);
+        document.addEventListener('visibilitychange', beat);         // 切走/切回立刻上报
+        // 关闭或刷新前通知后端；sendBeacon 在页面卸载时也能发出（fetch 会被取消）
+        window.addEventListener('pagehide', () => navigator.sendBeacon('/api/bye'));
+    })();
+
+    refreshAll();
 </script>
 </body>
 </html>

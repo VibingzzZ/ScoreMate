@@ -89,7 +89,7 @@ public class OpenAiCompatExtractor implements Extractor {
         // 用户不需要知道 max_tokens 是什么。
         int budget = props.maxTokens();
         for (int attempt = 1; ; attempt++) {
-            String requestBody = toJson(payload(dataUrl, profile.model(), budget));
+            String requestBody = toJson(payload(dataUrl, prompt, profile.model(), budget));
 
             long startedAt = System.currentTimeMillis();
             HttpResponse<String> response = postJson(requestBody, profile);
@@ -99,7 +99,11 @@ public class OpenAiCompatExtractor implements Extractor {
                 throw classify(response.statusCode(), response.body());
             }
             try {
-                return parse(response.body(), latencyMs, profile.model());
+                ExtractionResult result = parse(response.body(), latencyMs, profile.model());
+                log.info("抽取完成 model={} {}ms tokens={} docType={} confidence={}",
+                        profile.model(), latencyMs, result.totalTokens(),
+                        result.fact().docType(), result.fact().confidence());
+                return result;
             } catch (TruncatedOutput e) {
                 int next = Math.min(budget * 2, MAX_TOKEN_CEILING);
                 // 最多试 3 次（1500→3000→6000，或 4000→8000→16000）：
@@ -231,16 +235,13 @@ public class OpenAiCompatExtractor implements Extractor {
         JsonNode usage = root.path("usage").path("total_tokens");
         Integer tokens = usage.isNumber() ? usage.asInt() : null;
 
-        log.info("抽取完成 model={} {}ms tokens={} docType={} confidence={}",
-                model, latencyMs, tokens, fact.docType(), fact.confidence());
-
         return new ExtractionResult(fact, model, latencyMs, tokens);
     }
 
-    private Map<String, Object> payload(String dataUrl, String model, int maxTokens) {
+    private Map<String, Object> payload(String dataUrl, String userText, String model, int maxTokens) {
         Map<String, Object> textPart = new LinkedHashMap<>();
         textPart.put("type", "text");
-        textPart.put("text", prompt);
+        textPart.put("text", userText);
 
         Map<String, Object> imagePart = new LinkedHashMap<>();
         imagePart.put("type", "image_url");
@@ -256,6 +257,14 @@ public class OpenAiCompatExtractor implements Extractor {
         body.put("max_tokens", maxTokens);
         body.put("messages", List.of(message));
         return body;
+    }
+
+    private static JsonNode readTree(String json) {
+        try {
+            return MAPPER.readTree(json);
+        } catch (JsonProcessingException e) {
+            throw new BusinessException("模型返回的不是 JSON，无法解析", 502);
+        }
     }
 
     /** 输出被 max_tokens 截断：不是用户的错，调用方会自动放大预算重试一次 */

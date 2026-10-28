@@ -38,7 +38,8 @@ class LlmProfileTest {
     @Test
     void LlmProperties的toString同样不泄露() {
         LlmProperties props = new LlmProperties(
-                "https://api.openai.com/v1", "gpt-4o", "sk-abcdef0123456789xyz", "openai", 120, 4000, "extract-v1.txt");
+                "https://api.openai.com/v1", "gpt-4o", "sk-abcdef0123456789xyz", "openai",
+                120, 4000, "extract-v1.txt");
         String s = props.toString();
         assertFalse(s.contains("sk-abcdef0123456789xyz"), "LlmProperties.toString 不应含明文 Key");
         assertTrue(s.contains("****"));

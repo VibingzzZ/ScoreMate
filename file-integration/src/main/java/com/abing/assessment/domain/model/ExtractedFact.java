@@ -33,4 +33,13 @@ public record ExtractedFact(
         @JsonProperty("evidence_quote") String evidenceQuote,
         @JsonProperty("confidence") Double confidence
 ) {
+
+    /**
+     * 换掉姓名（统一成本人信息时用）。
+     * record 不可变，只能整条重建——比加一堆 setter 更不容易漏字段。
+     */
+    public ExtractedFact withPersonName(String newName) {
+        return new ExtractedFact(docType, newName, multiPerson, issuer, date, periodStart, periodEnd,
+                title, achievement, levelHint, categoryGuess, evidenceQuote, confidence);
+    }
 }

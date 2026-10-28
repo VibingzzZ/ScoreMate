@@ -28,7 +28,7 @@
             color: var(--text);
             background: var(--bg);
         }
-        .wrap { max-width: 720px; margin: 48px auto; padding: 0 24px 64px; }
+        .wrap { max-width: 760px; margin: 48px auto; padding: 0 24px 64px; }
         h1 { font-size: 20px; font-weight: 650; margin: 0; }
         h2 { font-size: 14px; font-weight: 600; margin: 0; }
         .sub { color: var(--muted); font-size: 13px; margin: 0; line-height: 1.7; }
@@ -44,6 +44,7 @@
         .badge.ok   { background: var(--ok-bg);   color: var(--ok-fg); }
         .badge.warn { background: var(--warn-bg); color: var(--warn-fg); }
         .badge.bad  { background: var(--bad-bg);  color: var(--bad-fg); }
+        .badge.mute { background: #f2f4f7; color: var(--muted); }
         .alert {
             margin-top: 12px; padding: 12px 16px; font-size: 13px; line-height: 1.7;
             background: var(--bad-bg); border: 1px solid #fecdca; border-radius: var(--radius); color: var(--bad-fg);
@@ -55,10 +56,10 @@
             display: flex; justify-content: space-between; align-items: baseline;
             gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
         }
+        .panel-head h2 { display: flex; align-items: center; gap: 8px; }
         .hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
         .body { padding: 18px; }
         .picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-        input[type=file] { font-size: 13px; max-width: 100%; }
         button {
             font-size: 13px; padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer;
             border: 1px solid var(--border); background: #fff; color: var(--text); font-family: inherit;
@@ -68,17 +69,12 @@
         button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
         button.primary:hover:not(:disabled) { background: var(--primary-d); }
         button:disabled { opacity: .5; cursor: default; }
+        button.mini { padding: 4px 10px; font-size: 12px; }
         .msg { margin-top: 12px; font-size: 13px; line-height: 1.7; }
         .msg.err { color: var(--bad-fg); }
         .msg.good { color: var(--ok-fg); }
         .msg.info { color: var(--muted); }
         .state { font-size: 13px; color: #444; line-height: 1.8; }
-        table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
-        th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
-        th { width: 132px; color: var(--muted); font-weight: 400; }
-        td { word-break: break-word; }
-        td.null { color: #aaa; }
-        .meta { margin-top: 12px; font-size: 12px; color: var(--muted); }
         footer { margin-top: 24px; font-size: 12px; color: var(--muted); line-height: 1.9; }
         /* 版本标识：排查"页面没更新"时一眼看出加载的是哪一版 */
         footer .build { color: #9aa3af; font-size: 11.5px; }
@@ -89,12 +85,7 @@
         }
         .hd h1 { font-size: 20px; font-weight: 650; }
         .hd .sub { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
-        .drop {
-            border: 1.5px dashed #cbd5e1; border-radius: var(--radius); padding: 18px; text-align: center;
-            transition: border-color .15s, background .15s;
-        }
-        .drop:hover { border-color: var(--primary); background: #f8faff; }
-        /* 多厂商 Key 表单 */
+        /* 表单字段 */
         .field { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
         .field label { font-size: 12px; color: var(--muted); }
         .field input, .field select {
@@ -105,7 +96,7 @@
         .field input:focus, .field select:focus {
             outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.15);
         }
-        .page-title { margin-top: 14px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
         /* 模型配置卡片列表（CC-SWITCH 式：多套配置 + 启用切换） */
         .p-card {
             display: flex; align-items: center; gap: 12px; padding: 12px 14px;
@@ -117,13 +108,79 @@
         .p-name { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .p-meta { font-size: 12px; color: var(--muted); margin-top: 3px; word-break: break-all; }
         .p-actions { display: flex; gap: 6px; flex: none; }
-        button.mini { padding: 4px 10px; font-size: 12px; }
         .sep { border: none; border-top: 1px solid #f0f0f0; margin: 16px 0 4px; }
         .form-title { font-size: 13px; font-weight: 600; margin-top: 8px; color: var(--text); }
         .empty { font-size: 13px; color: var(--muted); padding: 6px 2px 2px; }
-        @media (max-width: 560px) {
+
+        /* ── 上传区 ─────────────────────────────────────────── */
+        .zone {
+            border: 1.5px dashed #cbd5e1; border-radius: var(--radius);
+            padding: 26px 18px; text-align: center; transition: border-color .15s, background .15s;
+        }
+        .zone:hover, .zone.over { border-color: var(--primary); background: #f5f8ff; }
+        .zone-t { font-size: 14px; }
+        .zone-s { font-size: 12px; color: var(--muted); margin-top: 6px; }
+        .link { color: var(--primary); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+        /* ── 材料队列卡片 ───────────────────────────────────── */
+        .f-item { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 10px; overflow: hidden; }
+        .f-item.ok  { border-left: 3px solid #12b76a; }
+        .f-item.err { border-left: 3px solid #f04438; }
+        .f-item.run { border-left: 3px solid var(--primary); }
+        .f-head { display: flex; align-items: center; gap: 10px; padding: 11px 13px; cursor: pointer; }
+        .f-head:hover { background: #fafbfc; }
+        .f-no { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+        .f-main { flex: 1; min-width: 0; }
+        .f-name {
+            font-size: 13.5px; font-weight: 600;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .f-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+        .chev { color: var(--muted); font-size: 10px; transition: transform .15s; flex: none; }
+        .f-item.open .chev { transform: rotate(180deg); }
+        .f-body { display: none; padding: 2px 13px 13px; border-top: 1px solid #f0f0f0; }
+        .f-item.open .f-body { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+        th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #f4f5f7; vertical-align: top; }
+        th { width: 118px; color: var(--muted); font-weight: 400; padding-top: 8px; }
+        td { word-break: break-word; }
+        .page-title { margin-top: 14px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+
+        /* 内联可编辑字段：看起来还是表格，点进去才变输入框 */
+        input.fi {
+            width: 100%; box-sizing: border-box; border: 1px solid transparent; background: transparent;
+            font: inherit; color: inherit; padding: 4px 6px; border-radius: 5px; font-family: inherit;
+            transition: border-color .15s, background .15s, box-shadow .15s;
+        }
+        input.fi:hover { border-color: var(--border); background: #fff; }
+        input.fi:focus {
+            outline: none; border-color: var(--primary); background: #fff;
+            box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+        }
+        input.fi.empty { color: #b0b7c3; }
+
+        /* ── 待确认清单 ─────────────────────────────────────── */
+        .iss { display: flex; gap: 14px; align-items: flex-start; padding: 11px 0; border-bottom: 1px solid #f0f0f0; }
+        .iss:last-child { border-bottom: none; }
+        .iss-main { flex: 1; min-width: 0; }
+        .iss-t { font-size: 13px; font-weight: 600; }
+        .iss-h { font-size: 12px; color: var(--warn-fg); margin-top: 3px; line-height: 1.65; }
+        /* 必须带上 input 前缀：input.fi 的 width:100% 优先级更高，否则会把左侧文字挤成一列 */
+        .iss input.fi { width: 190px; flex: none; border-color: #d0d5dd; background: #fff; }
+        .iss.done .iss-t { color: var(--muted); }
+        .iss.done .iss-t::after { content: ' 已确认'; font-size: 11px; color: var(--ok-fg); font-weight: 400; }
+        .iss.done .iss-h { color: var(--ok-fg); }
+        .iss.done input.fi { border-color: transparent; background: #f9fafb; }
+
+        /* 扫描完成后的总览条 */
+        .sum { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 12px; }
+        .sum b { color: var(--text); font-variant-numeric: tabular-nums; }
+        @media (max-width: 600px) {
             .wrap { padding: 0 16px 48px; }
             .row { flex-wrap: wrap; }
+            .grid2 { grid-template-columns: 1fr; }
+            .iss { flex-direction: column; gap: 6px; }
+            .iss input.fi { width: 100%; }
         }
     </style>
 </head>
@@ -149,9 +206,48 @@
         <div id="alert-body"></div>
     </div>
 
+    <!-- ① 我的信息：填一次，全部材料统一采用 -->
     <div class="panel">
         <div class="panel-head">
-            <h2>模型配置</h2>
+            <h2>① 我的信息</h2>
+            <span class="hint">填一次 · 所有材料统一采用这里的姓名，不靠模型去读</span>
+        </div>
+        <div class="card">
+            <div class="body">
+                <div class="grid2">
+                    <div class="field">
+                        <label>姓名（必填）</label>
+                        <input type="text" id="ow-name" placeholder="例如：廖展滨" maxlength="20">
+                    </div>
+                    <div class="field">
+                        <label>学号</label>
+                        <input type="text" id="ow-sid" placeholder="例如：2024xxxxxx" maxlength="30">
+                    </div>
+                    <div class="field">
+                        <label>班级</label>
+                        <input type="text" id="ow-class" placeholder="例如：计科 2 班" maxlength="40">
+                    </div>
+                    <div class="field">
+                        <label>学院</label>
+                        <input type="text" id="ow-college" placeholder="例如：计算机学院" maxlength="40">
+                    </div>
+                    <div class="field">
+                        <label>年级</label>
+                        <input type="text" id="ow-grade" placeholder="例如：2024 级" maxlength="20">
+                    </div>
+                </div>
+                <div class="picker">
+                    <button class="primary" id="ow-save">保存</button>
+                </div>
+                <div class="msg info" id="ow-msg">姓名填上以后，材料里读到的姓名跟它对不上时会提示你确认（可能是别人的材料混进来了）。</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ② 模型配置 -->
+    <div class="panel">
+        <div class="panel-head">
+            <h2>② 模型配置</h2>
             <span class="hint">用自己的 Key（BYOK）· 可存多套，随时切换</span>
         </div>
         <div class="card">
@@ -210,45 +306,66 @@
         </div>
     </div>
 
+    <!-- ③ 上传材料 -->
     <div class="panel">
         <div class="panel-head">
-            <h2>试识别一份证书</h2>
-            <span class="hint">只有这里识别出来的字段，才会进入后续算分</span>
+            <h2>③ 上传材料</h2>
+            <span class="hint">可一次选多份 · 逐份识别，扫完统一确认</span>
         </div>
         <div class="card">
             <div class="body">
-                <div class="drop">
-                    <input type="file" id="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp">
-                    <button class="primary" id="btn">开始识别</button>
+                <div class="zone" id="zone">
+                    <div class="zone-t">把证书照片 / PDF 拖到这里，或 <span class="link" id="pick">点击选择文件</span></div>
+                    <div class="zone-s">支持 jpg / png / webp、pdf、doc / docx（Word 需本机装 LibreOffice）· 单个 ≤ 10MB</div>
+                    <input type="file" id="file" multiple hidden
+                           accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp">
                 </div>
-                <div class="msg info" id="msg">选一张证书照片、一份 PDF，或一份 Word（doc / docx，需本机装 LibreOffice）。</div>
-                <div id="result"></div>
+                <div class="picker">
+                    <button class="primary" id="btn" disabled>开始识别</button>
+                    <button id="btn-clear" disabled>清空队列</button>
+                    <span class="hint" id="queue-hint"></span>
+                </div>
+                <div class="msg info" id="msg">先选文件。识别过程中别关页面——每份 5 到 30 秒。</div>
+                <div id="queue"></div>
+                <div class="sum" id="sum" style="display:none"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- ④ 待确认清单 -->
+    <div class="panel" id="review-panel" style="display:none">
+        <div class="panel-head">
+            <h2>④ 待确认 <span class="badge warn" id="review-count">0 项</span></h2>
+            <span class="hint">模型不确定或没读到的字段 · 改完即最终结果</span>
+        </div>
+        <div class="card">
+            <div class="body" id="review"></div>
         </div>
     </div>
 
     <footer>
         M1 阶段：验证「视觉模型能不能看懂证书」。识别结果还不是最终分数，算分要靠规则引擎。
         <br>关闭本页后程序会自动退出，下次双击 exe 再打开即可。
-        <br><span class="build">界面版本 2026-10-28</span>
+        <br><span class="build">界面版本 2026-10-28b（批量 + 待确认）</span>
     </footer>
 </div>
 
 <script>
+    // 字段顺序即展示顺序。第三个参数 = 只读（布尔值改成文本可编辑容易把类型搞坏）
     const FIELDS = [
-        ['doc_type', '材料类型'],
-        ['person_name', '姓名'],
-        ['is_multi_person', '含他人姓名'],
-        ['issuer', '颁发单位'],
-        ['date', '签发日期'],
-        ['period_start', '任期起'],
-        ['period_end', '任期止'],
-        ['title', '名称'],
-        ['achievement', '获奖等级'],
-        ['level_hint', '级别（弱判断）'],
-        ['category_guess', '类别（弱判断）'],
-        ['evidence_quote', '原文摘录'],
-        ['confidence', '置信度']
+        ['doc_type', '材料类型', false],
+        ['person_name', '姓名', false],
+        ['is_multi_person', '含他人姓名', true],
+        ['issuer', '颁发单位', false],
+        ['date', '签发日期', false],
+        ['period_start', '任期起', false],
+        ['period_end', '任期止', false],
+        ['title', '名称', false],
+        ['achievement', '获奖等级', false],
+        ['level_hint', '级别（弱判断）', false],
+        ['category_guess', '类别（弱判断）', false],
+        ['evidence_quote', '原文摘录', false],
+        ['confidence', '置信度', false]
     ];
 
     // 厂商默认值，与后端 ProviderDefaults 保持一致（页面选厂商时自动带出，仅是预填，
@@ -266,7 +383,8 @@
 
     function esc(s) {
         return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
     function setMsg(el, cls, text) {
@@ -274,6 +392,22 @@
         el.textContent = text;
     }
 
+    function fmtSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+        return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+    }
+
+    // ── 全局状态 ────────────────────────────────────────────────────────
+    const state = {
+        profile: { name: '', studentId: '', className: '', college: '', grade: '' },
+        items: [],          // {key, file, status, error, data, open}
+        seq: 0,
+        running: false,
+        resolved: new Set() // `${key}:${page}:${field}` —— 用户手动确认过的字段
+    };
+
+    // ── 状态卡片 ────────────────────────────────────────────────────────
     async function refreshStatus() {
         try {
             const resp = await fetch('/api/status');
@@ -315,7 +449,86 @@
         }
     }
 
-    // ── 模型配置：列表 / 新增 / 编辑 / 启用 / 删除（CC-SWITCH 式） ────────
+    // ── ① 我的信息 ──────────────────────────────────────────────────────
+    async function loadProfile() {
+        try {
+            const r = await fetch('/api/profile');
+            const payload = await r.json().catch(() => ({}));
+            const d = payload.data || {};
+            state.profile = d;
+            $('ow-name').value = d.name || '';
+            $('ow-sid').value = d.studentId || '';
+            $('ow-class').value = d.className || '';
+            $('ow-college').value = d.college || '';
+            $('ow-grade').value = d.grade || '';
+            if (!d.hasName) {
+                setMsg($('ow-msg'), 'info', '还没填姓名。填上以后所有材料统一采用它，模型读错字也不影响结果。');
+            } else {
+                setMsg($('ow-msg'), 'good', '已保存。材料里的姓名统一用「' + d.name + '」。');
+            }
+        } catch (e) {
+            setMsg($('ow-msg'), 'err', '读取本人信息失败：' + e);
+        }
+    }
+
+    $('ow-save').addEventListener('click', async () => {
+        const nameNew = $('ow-name').value.trim();
+        if (!nameNew) {
+            setMsg($('ow-msg'), 'err', '姓名必填——它是判断"这份材料是不是你的"的唯一依据。');
+            $('ow-name').focus();
+            return;
+        }
+        const body = {
+            name: nameNew,
+            studentId: $('ow-sid').value.trim(),
+            className: $('ow-class').value.trim(),
+            college: $('ow-college').value.trim(),
+            grade: $('ow-grade').value.trim()
+        };
+        $('ow-save').disabled = true;
+        try {
+            const r = await fetch('/api/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const payload = await r.json().catch(() => ({}));
+            if (!r.ok) {
+                setMsg($('ow-msg'), 'err', payload.message || ('保存失败（HTTP ' + r.status + '）'));
+                return;
+            }
+            state.profile = payload.data || body;
+
+            // 已经扫过的材料：直接把姓名刷新成新值，不用重扫（省时间省钱）
+            let patched = 0;
+            state.items.forEach(it => {
+                const pages = (it.data && it.data.pages) || [];
+                pages.forEach((p, i) => {
+                    if (p.fact && p.fact.person_name !== nameNew) {
+                        p.fact.person_name = nameNew;
+                        patched++;
+                    }
+                    // 姓名相关的歧义项现在都统一了，视为已确认
+                    (p.issues || []).forEach(iss => {
+                        if (iss.field === 'person_name') {
+                            state.resolved.add(it.key + ':' + i + ':person_name');
+                        }
+                    });
+                });
+            });
+            renderQueue();
+            renderReview();
+            setMsg($('ow-msg'), 'good', '已保存。' + (patched > 0
+                ? '已同步更新 ' + patched + ' 处已识别材料的姓名，不用重新扫描。'
+                : '之后扫的材料都会用这个名字。'));
+        } catch (e) {
+            setMsg($('ow-msg'), 'err', '请求失败：' + e);
+        } finally {
+            $('ow-save').disabled = false;
+        }
+    });
+
+    // ── ② 模型配置：列表 / 新增 / 编辑 / 启用 / 删除（CC-SWITCH 式） ────
     let editingId = null;      // null = 新增模式；有值 = 正在编辑该配置
     let lastProfiles = [];
 
@@ -504,69 +717,383 @@
         }
     });
 
-    $('btn').addEventListener('click', async () => {
-        const file = $('file').files && $('file').files[0];
-        const msgEl = $('msg');
-        if (!file) {
-            setMsg(msgEl, 'err', '先选一个文件。');
-            return;
-        }
+    // ── ③ 上传材料：多选 / 拖拽 → 队列 → 逐份识别 ──────────────────────
 
-        $('btn').disabled = true;
-        $('result').innerHTML = '';
-        setMsg(msgEl, 'info', '识别中…视觉模型通常要 5 到 30 秒，别关页面。');
+    const ACCEPT_EXT = /\.(pdf|docx?|jpe?g|png|webp)$/i;
 
-        const started = Date.now();
-        try {
-            const form = new FormData();
-            form.append('file', file);
-            const resp = await fetch('/api/extract', { method: 'POST', body: form });
-            const payload = await resp.json().catch(() => ({}));
-
-            if (!resp.ok) {
-                setMsg(msgEl, 'err', (payload && payload.message) || ('识别失败（HTTP ' + resp.status + '）'));
-                return;
-            }
-
-            const d = payload.data || {};
-            setMsg(msgEl, 'info', '识别完成，用时 ' + ((Date.now() - started) / 1000).toFixed(1)
-                + ' 秒。以下字段请自己核对一遍。');
-            renderPages(d);
-        } catch (e) {
-            setMsg(msgEl, 'err', '请求失败：' + e);
-        } finally {
-            $('btn').disabled = false;
-        }
-    });
-
-    function renderPages(d) {
-        const pages = d.pages || [];
-        let html = '';
-        if (pages.length === 0) {
-            html = '<div class="msg err">未能识别任何页面</div>';
-        } else if (pages.length === 1) {
-            html = renderOne(pages[0]);
-        } else {
-            html = '<div class="hint">共 ' + (d.pageCount || pages.length) + ' 页，识别前 ' + d.pagesUsed + ' 页'
-                + (d.note ? '（' + esc(d.note) + '）' : '') + '</div>';
-            pages.forEach((fact, i) => {
-                html += '<div class="page-title">第 ' + (i + 1) + ' 页</div>' + renderOne(fact);
+    function addFiles(fileList) {
+        const skipped = [];
+        Array.from(fileList || []).forEach(f => {
+            if (!ACCEPT_EXT.test(f.name)) { skipped.push(f.name + '（格式不支持）'); return; }
+            if (f.size > 10 * 1024 * 1024) { skipped.push(f.name + '（超过 10MB）'); return; }
+            const dup = state.items.some(x => x.file.name === f.name && x.file.size === f.size);
+            if (dup) { skipped.push(f.name + '（重复，已忽略）'); return; }
+            state.items.push({
+                key: ++state.seq,
+                file: f,
+                status: 'pending',
+                error: null,
+                data: null,
+                open: false
             });
-        }
-        html += '<div class="meta">模型 ' + esc(d.model) + ' · ' + esc(d.latencyMs) + ' ms · '
-            + (d.totalTokens == null ? 'token 未知' : d.totalTokens + ' tokens') + '</div>';
-        $('result').innerHTML = html;
+        });
+        if (skipped.length) setMsg($('msg'), 'err', '已跳过：' + skipped.join('、'));
+        else setMsg($('msg'), 'info', '已加入 ' + state.items.length + ' 份材料。点「开始识别」逐个扫描。');
+        renderQueue();
     }
 
-    function renderOne(fact) {
+    $('pick').addEventListener('click', () => $('file').click());
+    $('zone').addEventListener('click', e => {
+        if (e.target.id !== 'pick') $('file').click();
+    });
+    $('file').addEventListener('change', e => {
+        addFiles(e.target.files);
+        e.target.value = '';       // 允许重复选同一个文件
+    });
+
+    ['dragenter', 'dragover'].forEach(ev =>
+        $('zone').addEventListener(ev, e => { e.preventDefault(); $('zone').classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev =>
+        $('zone').addEventListener(ev, e => { e.preventDefault(); $('zone').classList.remove('over'); }));
+    $('zone').addEventListener('drop', e => {
+        if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
+    });
+
+    $('btn-clear').addEventListener('click', () => {
+        if (state.running) return;
+        state.items = [];
+        state.resolved.clear();
+        $('sum').style.display = 'none';
+        setMsg($('msg'), 'info', '队列已清空。');
+        renderQueue();
+        renderReview();
+    });
+
+    $('btn').addEventListener('click', async () => {
+        if (state.running) return;
+        const pending = state.items.filter(x => x.status === 'pending');
+        if (!pending.length) {
+            setMsg($('msg'), 'err', '队列里没有待识别的材料。');
+            return;
+        }
+        state.running = true;
+        $('btn').disabled = true;
+        $('btn-clear').disabled = true;
+        $('btn').textContent = '识别中…';
+
+        let done = 0;
+        const startedAll = Date.now();
+        for (const it of pending) {
+            it.status = 'running';
+            renderQueue();
+            setMsg($('msg'), 'info', '正在识别第 ' + (done + 1) + ' / ' + pending.length
+                + ' 份：' + it.file.name + '（单份通常 5 到 30 秒，别关页面）');
+            try {
+                const form = new FormData();
+                form.append('file', it.file);
+                const resp = await fetch('/api/extract', { method: 'POST', body: form });
+                const payload = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error((payload && payload.message) || ('HTTP ' + resp.status));
+                it.data = payload.data || {};
+                it.status = 'done';
+                // 有问题就自动展开，让用户一眼看到要改什么
+                it.open = countIssuesOf(it) > 0;
+            } catch (e) {
+                it.status = 'error';
+                it.error = (e && e.message) ? e.message : String(e);
+                it.open = true;
+            }
+            done++;
+            renderQueue();
+            renderReview();
+        }
+
+        state.running = false;
+        $('btn').textContent = '开始识别';
+        updateButtons();
+        const secs = ((Date.now() - startedAll) / 1000).toFixed(1);
+        const failed = state.items.filter(x => x.status === 'error').length;
+        const left = unresolvedCount();
+        setMsg($('msg'), failed ? 'err' : (left ? 'info' : 'good'),
+            '全部扫完，用时 ' + secs + ' 秒。'
+            + (failed ? failed + ' 份失败，展开看原因。' : '')
+            + (left ? '有 ' + left + ' 项需要你确认，见下方「待确认」。' : '没有需要确认的字段。'));
+    });
+
+    function updateButtons() {
+        const hasPending = state.items.some(x => x.status === 'pending');
+        $('btn').disabled = state.running || !hasPending;
+        $('btn-clear').disabled = state.running || state.items.length === 0;
+        const total = state.items.length;
+        $('queue-hint').textContent = total
+            ? '共 ' + total + ' 份 · ' + fmtSize(state.items.reduce((s, x) => s + x.file.size, 0))
+              + (hasPending ? ' · 待识别 ' + state.items.filter(x => x.status === 'pending').length + ' 份' : '')
+            : '';
+    }
+
+    function countIssuesOf(it) {
+        let n = 0;
+        ((it.data && it.data.pages) || []).forEach((p, i) => {
+            (p.issues || []).forEach(iss => {
+                if (!state.resolved.has(it.key + ':' + i + ':' + iss.field)) n++;
+            });
+        });
+        return n;
+    }
+
+    function valueOf(fact, field) {
+        const v = fact[field];
+        if (typeof v === 'boolean') return v ? '是' : '否';
+        return v == null ? '' : String(v);
+    }
+
+    function renderQueue() {
+        const box = $('queue');
+        if (!state.items.length) {
+            box.innerHTML = '';
+            updateButtons();
+            updateSum();
+            return;
+        }
+        box.innerHTML = state.items.map((it, idx) => {
+            const sel = it.status;
+            let badge = '<span class="badge mute">待识别</span>';
+            if (sel === 'running') badge = '<span class="badge warn">识别中…</span>';
+            if (sel === 'error') badge = '<span class="badge bad">失败</span>';
+            if (sel === 'done') {
+                const n = countIssuesOf(it);
+                badge = n
+                    ? '<span class="badge warn">' + n + ' 项待确认</span>'
+                    : '<span class="badge ok">无问题</span>';
+            }
+            const meta = [fmtSize(it.file.size)];
+            if (sel === 'done' && it.data) {
+                if (it.data.pages) meta.push(it.data.pages.length + ' 页');
+                if (it.data.latencyMs) meta.push((it.data.latencyMs / 1000).toFixed(1) + ' 秒');
+                if (it.data.totalTokens != null) meta.push(it.data.totalTokens + ' tokens');
+                if (it.data.note) meta.push(it.data.note);
+            }
+            if (sel === 'error') meta.push(it.error || '');
+
+            return '<div class="f-item ' + (sel === 'done' ? (countIssuesOf(it) ? 'run' : 'ok')
+                    : sel === 'error' ? 'err' : sel === 'running' ? 'run' : '')
+                + (it.open ? ' open' : '') + '" data-key="' + it.key + '">'
+                + '<div class="f-head" data-role="toggle" data-key="' + it.key + '">'
+                + '<span class="f-no">' + String(idx + 1).padStart(2, '0') + '</span>'
+                + '<div class="f-main">'
+                + '<div class="f-name">' + esc(it.file.name) + '</div>'
+                + '<div class="f-meta">' + esc(meta.join(' · ')) + '</div>'
+                + '</div>'
+                + badge
+                + '<span class="chev">▼</span>'
+                + '</div>'
+                + '<div class="f-body">' + bodyOf(it) + '</div>'
+                + '</div>';
+        }).join('');
+        updateButtons();
+        updateSum();
+    }
+
+    function bodyOf(it) {
+        if (it.status === 'pending') return '<div class="msg info">还没开始识别。</div>';
+        if (it.status === 'running') return '<div class="msg info">识别中，请稍等…</div>';
+        if (it.status === 'error') return '<div class="msg err">识别失败：' + esc(it.error) + '</div>';
+
+        const pages = (it.data && it.data.pages) || [];
+        if (!pages.length) return '<div class="msg err">没有识别出任何页面。</div>';
+
+        let html = '';
+        pages.forEach((p, pi) => {
+            if (pages.length > 1) html += '<div class="page-title">第 ' + (pi + 1) + ' 页</div>';
+            html += factTable(it.key, pi, p.fact || {});
+        });
+        return html;
+    }
+
+    function factTable(key, page, fact) {
         let html = '<table><tbody>';
-        for (const [key, label] of FIELDS) {
-            const raw = fact[key];
-            const empty = raw === null || raw === undefined || raw === '';
-            html += '<tr><th>' + label + '</th><td class="' + (empty ? 'null' : '') + '">'
-                + (empty ? '（未识别到）' : esc(raw)) + '</td></tr>';
+        for (const [field, label, ro] of FIELDS) {
+            const val = valueOf(fact, field);
+            if (ro) {
+                html += '<tr><th>' + label + '</th><td>'
+                    + (val === '' ? '<span style="color:#b0b7c3">—</span>' : esc(val)) + '</td></tr>';
+            } else {
+                html += '<tr><th>' + label + '</th><td>'
+                    + '<input class="fi' + (val === '' ? ' empty' : '') + '" type="text"'
+                    + ' data-key="' + key + '" data-page="' + page + '" data-field="' + field + '"'
+                    + ' value="' + esc(val) + '"'
+                    + (val === '' ? ' placeholder="（未识别到）"' : '') + '>'
+                    + '</td></tr>';
+            }
         }
         return html + '</tbody></table>';
+    }
+
+    // 折叠/展开
+    $('queue').addEventListener('click', e => {
+        const head = e.target.closest('[data-role="toggle"]');
+        if (!head) return;
+        const key = Number(head.getAttribute('data-key'));
+        const it = state.items.find(x => x.key === key);
+        if (!it) return;
+        it.open = !it.open;
+        const card = $('queue').querySelector('.f-item[data-key="' + key + '"]');
+        if (card) card.classList.toggle('open', it.open);
+    });
+
+    // 字段编辑：change 而不是 input，避免每敲一个字就回写
+    $('queue').addEventListener('change', e => {
+        const input = e.target.closest('input.fi');
+        if (!input) return;
+        applyEdit(Number(input.getAttribute('data-key')),
+            Number(input.getAttribute('data-page')),
+            input.getAttribute('data-field'),
+            input.value.trim());
+    });
+
+    $('review').addEventListener('change', e => {
+        const input = e.target.closest('input.fi');
+        if (!input) return;
+        applyEdit(Number(input.getAttribute('data-key')),
+            Number(input.getAttribute('data-page')),
+            input.getAttribute('data-field'),
+            input.value.trim());
+    });
+
+    /**
+     * 回写一个字段，并同步所有同坐标的输入框。
+     * 注意：这里刻意不做整块重渲染——change 在 blur 时触发，
+     * 如果重建 DOM，用户刚点进去的下一个输入框会失去焦点。
+     */
+    function applyEdit(key, page, field, value) {
+        const it = state.items.find(x => x.key === key);
+        if (!it || !it.data || !it.data.pages || !it.data.pages[page]) return;
+        const fact = it.data.pages[page].fact;
+        if (!fact) return;
+        fact[field] = value === '' ? null : value;
+
+        document.querySelectorAll(
+            '[data-key="' + key + '"][data-page="' + page + '"][data-field="' + field + '"]'
+        ).forEach(el => {
+            if (el.value !== value) el.value = value;
+            el.classList.toggle('empty', value === '');
+        });
+
+        state.resolved.add(key + ':' + page + ':' + field);
+        markIssueDone(key, page, field);
+        refreshCounts();
+    }
+
+    function markIssueDone(key, page, field) {
+        document.querySelectorAll(
+            '.iss[data-key="' + key + '"][data-page="' + page + '"][data-field="' + field + '"]'
+        ).forEach(el => el.classList.add('done'));
+    }
+
+    // 只更新计数与徽章，不重建 DOM
+    function refreshCounts() {
+        const left = unresolvedCount();
+        $('review-count').textContent = left + ' 项';
+        $('review-count').className = 'badge ' + (left ? 'warn' : 'ok');
+        state.items.forEach(it => {
+            if (it.status !== 'done') return;
+            const card = $('queue').querySelector('.f-item[data-key="' + it.key + '"]');
+            if (!card) return;
+            const n = countIssuesOf(it);
+            const badge = card.querySelector('.f-head .badge');
+            if (badge) {
+                badge.textContent = n ? n + ' 项待确认' : '无问题';
+                badge.className = 'badge ' + (n ? 'warn' : 'ok');
+            }
+            card.classList.toggle('run', n > 0);
+            card.classList.toggle('ok', n === 0);
+        });
+        updateSum();
+    }
+
+    function unresolvedCount() {
+        let n = 0;
+        state.items.forEach(it => {
+            ((it.data && it.data.pages) || []).forEach((p, i) => {
+                (p.issues || []).forEach(iss => {
+                    if (!state.resolved.has(it.key + ':' + i + ':' + iss.field)) n++;
+                });
+            });
+        });
+        return n;
+    }
+
+    // ── ④ 待确认清单 ────────────────────────────────────────────────────
+
+    const REASON_LABEL = {
+        auto_filled: '已自动补全',
+        name_mismatch: '姓名不一致',
+        missing: '没读到',
+        low_confidence: '可信度低'
+    };
+
+    function renderReview() {
+        const rows = [];
+        state.items.forEach((it, idx) => {
+            ((it.data && it.data.pages) || []).forEach((p, pi) => {
+                (p.issues || []).forEach(iss => {
+                    rows.push({ it, idx, pi, iss, done: state.resolved.has(it.key + ':' + pi + ':' + iss.field) });
+                });
+            });
+        });
+
+        const panel = $('review-panel');
+        if (!rows.length) {
+            panel.style.display = 'none';
+            $('review').innerHTML = '';
+            return;
+        }
+        panel.style.display = 'block';
+
+        const left = rows.filter(r => !r.done).length;
+        $('review-count').textContent = left + ' 项';
+        $('review-count').className = 'badge ' + (left ? 'warn' : 'ok');
+
+        $('review').innerHTML =
+            '<div class="hint" style="margin-bottom:6px">共 ' + rows.length + ' 项提示，其中 '
+            + left + ' 项还没确认。左边是材料·字段，右边直接改，改完自动标记为已确认。</div>'
+            + rows.map(r => {
+                const fact = (r.it.data.pages[r.pi] || {}).fact || {};
+                const cur = valueOf(fact, r.iss.field);
+                const pageTag = ((r.it.data.pages || []).length > 1) ? '· 第 ' + (r.pi + 1) + ' 页' : '';
+                return '<div class="iss' + (r.done ? ' done' : '') + '"'
+                    + ' data-key="' + r.it.key + '" data-page="' + r.pi
+                    + '" data-field="' + esc(r.iss.field) + '">'
+                    + '<div class="iss-main">'
+                    + '<div class="iss-t">材料 ' + (r.idx + 1) + ' ' + pageTag + ' · '
+                    + esc(r.iss.label || r.iss.field)
+                    + ' <span class="badge mute">' + esc(REASON_LABEL[r.iss.reason] || r.iss.reason) + '</span></div>'
+                    + '<div class="iss-h">' + esc(r.iss.hint || '') + '</div>'
+                    + '</div>'
+                    + '<input class="fi iss-in' + (cur === '' ? ' empty' : '') + '" type="text"'
+                    + ' data-key="' + r.it.key + '" data-page="' + r.pi
+                    + '" data-field="' + esc(r.iss.field) + '"'
+                    + ' value="' + esc(cur) + '"'
+                    + (cur === '' ? ' placeholder="填上正确值"' : '') + '>'
+                    + '</div>';
+            }).join('');
+    }
+
+    function updateSum() {
+        const doneItems = state.items.filter(x => x.status === 'done');
+        if (!doneItems.length) { $('sum').style.display = 'none'; return; }
+        let pages = 0, ms = 0, tokens = 0, tokenKnown = false;
+        doneItems.forEach(it => {
+            pages += (it.data.pages || []).length;
+            ms += it.data.latencyMs || 0;
+            if (it.data.totalTokens != null) { tokens += it.data.totalTokens; tokenKnown = true; }
+        });
+        $('sum').style.display = 'flex';
+        $('sum').innerHTML =
+            '<span>已完成 <b>' + doneItems.length + '</b> 份 / <b>' + pages + '</b> 页</span>'
+            + '<span>耗时 <b>' + (ms / 1000).toFixed(1) + '</b> 秒</span>'
+            + '<span>用量 <b>' + (tokenKnown ? tokens.toLocaleString() : '未知') + '</b> tokens</span>'
+            + '<span>待确认 <b>' + unresolvedCount() + '</b> 项</span>';
     }
 
     // ── 页面生命周期：开着报心跳，关了通知后端退出 ──────────────────
@@ -587,6 +1114,7 @@
     })();
 
     refreshAll();
+    loadProfile();
 </script>
 </body>
 </html>

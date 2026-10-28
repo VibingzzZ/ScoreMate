@@ -7,6 +7,7 @@ import com.abing.assessment.domain.model.ExtractionResult;
 import com.abing.assessment.domain.model.OwnerProfile;
 import com.abing.assessment.infra.llm.Extractor;
 import com.abing.assessment.infra.material.MaterialNormalizer;
+import com.abing.assessment.infra.material.NormalizedMaterial;
 import com.abing.assessment.infra.profile.OwnerProfileStore;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,7 +38,7 @@ import java.util.Map;
 public class ExtractController {
 
     /** 单张图片上限。视觉模型对超大图也不友好，压一下反而更准 */
-    private static final long MAX_BYTES = 10L * 1024 * 1024;
+    private static final long MAX_BYTES = 20L * 1024 * 1024;
 
     /** 单次识别最多处理的页数，避免一份 50 页 PDF 把额度烧光 */
     private static final int MAX_PAGES = 5;
@@ -64,7 +65,10 @@ public class ExtractController {
         String mime = file.getContentType() == null ? "" : file.getContentType();
         MaterialNormalizer normalizer = pickNormalizer(name, mime);
 
-        List<byte[]> images = normalizer.toImages(file.getInputStream(), file.getOriginalFilename());
+        // 页数上限在这里就传下去：PDF 只渲染用得上的那几页，不先把整本渲染完再丢
+        NormalizedMaterial material =
+                normalizer.normalize(file.getInputStream(), file.getOriginalFilename(), MAX_PAGES);
+        List<byte[]> images = material.images();
         OwnerProfile owner = profileStore.load();
 
         List<Map<String, Object>> pages = new ArrayList<>();
@@ -75,7 +79,7 @@ public class ExtractController {
         int totalTokens = 0;
         boolean tokensKnown = false;
 
-        int used = Math.min(images.size(), MAX_PAGES);
+        int used = images.size();
         for (int i = 0; i < used; i++) {
             ExtractionResult r = extractor.extract(images.get(i), "image/png");
 
@@ -103,10 +107,10 @@ public class ExtractController {
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("fileName", file.getOriginalFilename());
-        data.put("pageCount", images.size());
+        data.put("pageCount", material.totalPages());
         data.put("pagesUsed", used);
-        if (images.size() > MAX_PAGES) {
-            data.put("note", "材料共 " + images.size() + " 页，仅识别前 " + MAX_PAGES + " 页");
+        if (material.truncated()) {
+            data.put("note", "共 " + material.totalPages() + " 页，仅识别前 " + used + " 页（其余请手动处理）");
         }
         data.put("pages", pages);
         data.put("fact", facts.isEmpty() ? null : facts.get(0));   // 兼容旧前端
@@ -207,7 +211,8 @@ public class ExtractController {
             throw new BusinessException("没有收到文件", 400);
         }
         if (file.getSize() > MAX_BYTES) {
-            throw new BusinessException("文件超过 10MB，请先压缩到 2MB 以内再试", 413);
+            throw new BusinessException(
+                    "文件超过 20MB，这份不自动识别。请拆页或压缩后重传；材料本身可以留着，导出后手工归档", 413);
         }
         String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
         String mime = file.getContentType() == null ? "" : file.getContentType();

@@ -19,7 +19,8 @@ public class ImageNormalizer implements MaterialNormalizer {
     }
 
     @Override
-    public List<byte[]> toImages(InputStream in, String originalName) throws IOException {
-        return List.of(in.readAllBytes());
+    public NormalizedMaterial normalize(InputStream in, String originalName, int maxPages) throws IOException {
+        // 一张图就是一页，maxPages 用不上
+        return NormalizedMaterial.single(in.readAllBytes());
     }
 }

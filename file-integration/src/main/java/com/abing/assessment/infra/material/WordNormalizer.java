@@ -53,7 +53,7 @@ public class WordNormalizer implements MaterialNormalizer {
     }
 
     @Override
-    public List<byte[]> toImages(InputStream in, String originalName) throws IOException {
+    public NormalizedMaterial normalize(InputStream in, String originalName, int maxPages) throws IOException {
         Path soffice = detectSoffice().orElseThrow(() -> new BusinessException(
                 "当前电脑未安装 LibreOffice，无法识别 Word。请把 Word 另存为 PDF 后再上传", 415));
 
@@ -102,7 +102,8 @@ public class WordNormalizer implements MaterialNormalizer {
             }
 
             try (InputStream pdfIn = Files.newInputStream(pdf)) {
-                return pdfNormalizer.toImages(pdfIn, "source.pdf");
+                // 页数上限一路传下去：Word 转了 30 页，也只渲染前面那几页
+                return pdfNormalizer.normalize(pdfIn, "source.pdf", maxPages);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -2,20 +2,25 @@ package com.abing.assessment.infra.material;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 
 /**
  * 把任意材料归一化成「图片列表」，让下游视觉模型只看图、不关心原始格式。
  *
- * <p>S1/S3 落地：图片原样透传、PDF 与 Word 都归一化为每页一张 PNG；Word 借 LibreOffice 转 PDF。
+ * <p>图片原样透传、PDF 与 Word 都归一化为每页一张 PNG；Word 借 LibreOffice 转 PDF。
  */
 public interface MaterialNormalizer {
 
     boolean supports(String ext, String mime);
 
     /**
-     * 一页一张 PNG，顺序与材料页码一致。
+     * 归一化材料。
+     *
+     * <p><b>{@code maxPages} 是渲染上限，不是在结果上截断。</b>一份 40 页的 PDF
+     * 如果先全渲染再丢掉 35 张，等于为不要的东西付了 8 倍 CPU 和内存，
+     * 用户看到的就是"传完半天没反应"。实现方必须在渲染前就用这个值收手。
+     *
      * @param originalName 原始文件名（含扩展名），用于按扩展名判断格式（如 Word 需区分 doc/docx）
+     * @param maxPages     最多渲染多少页，至少 1
      */
-    List<byte[]> toImages(InputStream in, String originalName) throws IOException;
+    NormalizedMaterial normalize(InputStream in, String originalName, int maxPages) throws IOException;
 }

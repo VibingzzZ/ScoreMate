@@ -16,7 +16,11 @@ import java.util.List;
  * PDF → 每页一张 PNG。
  *
  * <p>视觉模型只读图，所以无论用户上传扫描件还是电子版 PDF，都先归一化。DPI=150 对 A4 证书
- * 足够模型读字，又不会把单页撑得太大。多页成本由调用方 cap（见 ExtractController）。
+ * 足够模型读字，又不会把单页撑得太大。
+ *
+ * <p><b>只渲染前 {@code maxPages} 页，而不是渲染完再截断。</b>渲染一页 A4 要几十毫秒到几百毫秒，
+ * 一份 40 页的扫描件全渲染就是十几秒 + 上百 MB 内存，最后 35 张直接扔掉——用户感受到的
+ * 就是「传到一半卡住」。总页数照样返回，用来提示「共 N 页，仅识别前 5 页」。
  */
 @Component
 public class PdfNormalizer implements MaterialNormalizer {
@@ -32,19 +36,20 @@ public class PdfNormalizer implements MaterialNormalizer {
     }
 
     @Override
-    public List<byte[]> toImages(InputStream in, String originalName) throws IOException {
+    public NormalizedMaterial normalize(InputStream in, String originalName, int maxPages) throws IOException {
         // PDFBox 2.x 的 load(InputStream) 内部会把流读进内存缓冲，普通流即可（无需 reset）
         try (PDDocument doc = PDDocument.load(in)) {
             PDFRenderer renderer = new PDFRenderer(doc);
-            List<byte[]> pages = new ArrayList<>();
             int total = doc.getNumberOfPages();
-            for (int i = 0; i < total; i++) {
+            int limit = Math.min(total, Math.max(1, maxPages));
+            List<byte[]> pages = new ArrayList<>(limit);
+            for (int i = 0; i < limit; i++) {
                 BufferedImage img = renderer.renderImageWithDPI(i, DPI);
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 ImageIO.write(img, "png", baos); // 统一落 PNG，下游 Extractor 只认 image/png
                 pages.add(baos.toByteArray());
             }
-            return pages;
+            return new NormalizedMaterial(pages, total);
         }
     }
 }

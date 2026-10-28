@@ -464,11 +464,18 @@ $('key-clear-all').addEventListener('click', async () => {
 
 const ACCEPT_EXT = /\.(pdf|docx?|jpe?g|png|webp)$/i;
 
+// 单份上限。PDF 会被逐页按 150dpi 渲染成图片，所以文件本身大不影响识别耗时；
+// 放窄了反而会把「活动合影多、扫描件页数多」这类正常材料挡在外面。
+const MAX_FILE_MB = 20;
+
 function addFiles(fileList) {
     const skipped = [];
     Array.from(fileList || []).forEach(f => {
         if (!ACCEPT_EXT.test(f.name)) { skipped.push(f.name + '（格式不支持）'); return; }
-        if (f.size > 10 * 1024 * 1024) { skipped.push(f.name + '（超过 10MB）'); return; }
+        if (f.size > MAX_FILE_MB * 1024 * 1024) {
+            skipped.push(f.name + '（超过 ' + MAX_FILE_MB + 'MB）');
+            return;
+        }
         const dup = state.items.some(x => x.file.name === f.name && x.file.size === f.size);
         if (dup) { skipped.push(f.name + '（重复，已忽略）'); return; }
         state.items.push({

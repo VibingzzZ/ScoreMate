@@ -4,8 +4,11 @@ spring:
 
   servlet:
     multipart:
+      # 单份材料上限。PDF 是逐页渲染的，文件本身大小不影响识别，放宽不会带来额外模型成本
       max-file-size: 20MB
-      max-request-size: 100MB
+      # 导出接口一次要带上「所有原件」打包，20 份 × 20MB 就有 400MB。
+      # 这个值只限制请求体大小，不会一次性读进内存（Spring 会落盘到临时目录）。
+      max-request-size: 500MB
 
   # 静态资源不缓存。默认 Spring Boot 只给 Last-Modified、不给 Cache-Control，
   # 浏览器走"启发式缓存"，会出现「代码/包都更新了，页面还是旧的」——实测踩过一次：

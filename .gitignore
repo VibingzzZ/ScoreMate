@@ -1,0 +1,57 @@
+file-integration/HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### 综测项目 ###
+.probe/
+# 探针输出（可能含证书图片内容）
+probe/out/
+# 探针样本：真实证书属个人信息，绝不提交（只保留说明文件）
+probe/samples/*
+!probe/samples/README.md
+# 本地个人数据，绝不提交
+profile.yaml
+materials/
+artifacts/
+output/
+*.zip
+# 打包产物（jpackage 出来的 exe 目录，200MB+）
+dist/
+# 密钥与凭据（理论上不应存在，兜底）
+*.env
+.env
+**/*secret*
+*.key
+llm.key
+.workbuddy/
+.docs/

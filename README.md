@@ -1,6 +1,6 @@
 <div align="center">
 
-# 综测材料整理
+# 综测智核
 
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![Java](https://img.shields.io/badge/Java-21-orange)

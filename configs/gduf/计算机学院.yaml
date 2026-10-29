@@ -1,0 +1,587 @@
+# 综合测评规则配置 —— GDUF计算机学院（2026 版）
+#
+# 用途：规则引擎配置。细则年更时只改本文件，不改代码。
+# 数据来源（全部为原始 PDF，不经二手整理）：
+#   材料1《计算机学院综合测评评分细则（试行）20260702.pdf》  P19–P37 为学院加分表
+#   材料2《综测评定注意事项.pdf》                            五育公式与总表填法
+#   附件3《计算机学院综合测评表_格式要求.xlsx》               评定表/加分明细的列结构
+#   校发《GDUF本科生综合测评及评优评先实施办法（2026年修订）》 P1–P18
+# 提取日期：2026-10-15 ／ 迁移到通用 schema：2026-10-28
+# 数值核对：2026-10-28 把 P23–P37 的表格页渲染成图片逐格核对，
+#          不再依赖 PDF 文本抽取（文本层会把「一等/二等/三等/优秀/参与」挤成一串数字）
+#
+# ── 覆盖情况 ────────────────────────────────────────────────
+#   五育加分/扣分表全部结构化。仅两类标为人工定分：
+#     ① 报告文章类（德育 5.)     —— 分值 × 作者位次，位次与人数读不准，宁可留空
+#     ② 学术论文类（智育 3.)     —— 同上，且需鉴定刊物级别
+#   这两类会在页面上以「需要人工定分」出现，并附带完整折算表，看着表填即可。
+
+meta:
+  school: 广东金融学院
+  college: 计算机学院
+  rule_version: "2026-07-02"
+  source_file: "材料1：计算机学院综合测评评分细则（试行）20260702.pdf"
+  extracted_at: "2026-10-15"
+
+# ── 计分公式 ──────────────────────────────────────────────
+# overall 里的变量是各维度 name（中文可直接当标识符）
+formulas:
+  overall: "德育*0.20 + 智育*0.60 + 体育*0.10 + 美育*0.05 + 劳育*0.05"
+
+# ── 五育维度（固定五个，2026-10-27 决策 4）──────────────────
+# 公式可用变量：inputs 里声明的 key（用户手填） + bonus（加分合计） + deduction（扣分合计的绝对值）
+# 五条公式均照抄校发办法第五~九条原文，系数不要改
+dimensions:
+  - id: moral
+    name: 德育
+    weight: 0.20
+    formula: "base*0.30 + peer*0.20 + bonus*0.50 - deduction"
+    floor_zero: true
+    inputs:
+      - { key: base, name: 德育基础分, hint: "办法第五条：个人学年总结自评" }
+      - { key: peer, name: 互评分, hint: "办法第五条：班级评议给出的分数" }
+
+  - id: intellect
+    name: 智育
+    weight: 0.60
+    formula: "base*0.80 + bonus*0.20"
+    floor_zero: true
+    inputs:
+      - { key: base, name: 智育基础分, hint: "办法第六条：教务处公布的平均绩点折算成绩" }
+
+  - id: physique
+    name: 体育
+    weight: 0.10
+    formula: "base*0.70 + bonus*0.30 - deduction"
+    floor_zero: true
+    inputs:
+      - { key: base, name: 体育基础分, hint: "办法第七条：本学年体测分数折算" }
+
+  - id: aesthetic
+    name: 美育
+    weight: 0.05
+    formula: "base*0.50 + bonus*0.50 - deduction"
+    floor_zero: true
+    inputs:
+      - { key: base, name: 美育基础分, hint: "办法第八条：互评 + 美育课程修读各占一半" }
+
+  - id: labour
+    name: 劳育
+    weight: 0.05
+    formula: "base*0.50 + bonus*0.50 - deduction"
+    floor_zero: true
+    inputs:
+      - { key: base, name: 劳育基础分, hint: "办法第九条：即《劳动教育》课程成绩" }
+
+# ── 通用约束（跨所有规则组）───────────────────────────────
+global_constraints:
+  time_window: true                 # 证书日期须落在评测学年内（引擎会标 in_window 但不删除）
+  same_category_highest_only: true  # 同类别取最高：由各组的 max_items 与引擎同组取最高实现
+  proof_required: true              # 无证明材料加分无效（例外见 student_officer 的职务）
+  multi_person_circle_self: true    # 多人文件须框出本人姓名
+
+# ── 规则组 ────────────────────────────────────────────────
+# match 常用键：doc_type / level / titles / achievement / issuer / column
+#   titles、achievement、issuer 都是「任一关键词作为子串出现」即算命中
+#   level 取 AI 判定的级别（国家级/省级/校级/院级）；AI 判不出时不算未命中，
+#         而是让各等级的条目都成为候选，由人在页面上挑
+#
+# 组级过滤：引擎会用「AI 判定的维度」比对组所属维度，对不上就整组跳过。
+#   这一条防的是重复计分——一张摄影奖状既像美育活动又像德育一般性活动，
+#   不做过滤会被两个育各算一遍。AI 判成「其他/空」时不拦。
+rule_groups:
+
+  # ═══════════════ 德育（细则 P19–P30）═══════════════════════
+
+  # 1. 学生干部（职务类）—— 细化 P19–P21，需担任满一学年；身兼多项最多选两项
+  #    班级职务的名称本身就是班级专属，所以只按 titles 匹配、不挂 level：
+  #    AI 的级别枚举里没有「班级」，挂上 level: 班级 会导致永远匹配不上。
+  - id: student_officer
+    dimension: moral
+    kind: bonus
+    name: 学生干部
+    max_items: 2
+    note: "细则 P19：身兼多项职务者只能选其中两项计分；须担任工作满一学年"
+    items:
+      - match: { titles: ["班长", "团支书"] }
+        score: 12
+        note: "班级·（正副）班长 / （正副）团支书"
+      - match: { titles: ["学习委员", "班主任助理"] }
+        score: 10
+        note: "班级·学习委员 / 班主任助理"
+      - match: { titles: ["班委", "团支委"] }
+        score: 6
+        note: "班级·其他班委 / 团支委"
+      - match: { titles: ["宿舍长", "楼长", "层长"] }
+        score: 3
+        note: "班级·宿舍长（楼长、层长）"
+      - match: { titles: ["课代表"] }
+        score: 2
+        cap: 4
+        note: "班级·课代表（以学期计，学年内可累计 2 门 → 上限 4 分）"
+      - match: { level: 院级, titles: ["常委", "委员", "书记", "秘书长", "主席", "主任", "社长", "理事"] }
+        score: 12
+        note: "院级·一级负责人（常委/委员/书记/秘书长/主席/主任/社长/理事）"
+      - match: { level: 院级, titles: ["部长", "组长"] }
+        score: 8
+        note: "院级·二级负责人（部长/组长）"
+      - match: { level: 院级, titles: ["干事"] }
+        score: 5
+        note: "院级·干事"
+      - match: { level: 校级, titles: ["常委", "委员", "书记", "秘书长", "主席", "主任", "社长", "理事"] }
+        score: 15
+        note: "校级·一级负责人（含正副）"
+      - match: { level: 校级, titles: ["部长", "组长"] }
+        score: 10
+        note: "校级·二级负责人（含正副）"
+      - match: { level: 校级, titles: ["干事", "成员"] }
+        score: 6
+        note: "校级·干事 / 成员"
+      # 级别读不出来时的兜底候选（AI 没认出是院级还是校级）。
+      # level_unknown 保证这条只在「真的读不出级别」时参与，否则会把院级干事抢成 6 分
+      - match: { level_unknown: true, titles: ["干事", "成员"] }
+        score: 6
+        note: "干事/成员（级别未定：校级 6 / 院级 5，默认按校级计，可改选）"
+    exclusions:
+      - "非学生工作类学生社团、非学生工作干部成员不加分"
+
+  # 2.(1) 个人荣誉 —— 细则 P22；有多项荣誉时最多叠加两项
+  - id: honor_individual
+    dimension: moral
+    kind: bonus
+    name: 个人荣誉
+    max_items: 2
+    items:
+      - match: { level: 国家级, titles: ["三好学生", "优秀学生干部", "优秀团员干部", "优秀党员", "优秀团员"] }
+        score: 20
+        note: "国家级·三好学生/优秀学生干部/优秀团员干部/优秀党团员"
+      - match: { level: 省级, titles: ["三好学生", "优秀学生干部", "优秀团员干部", "优秀党员", "优秀团员"] }
+        score: 15
+        note: "省级·三好学生/优秀学生干部/优秀团员干部/优秀党团员"
+      - match: { level: 校级, titles: ["三好学生", "优秀学生干部", "优秀团员干部", "优秀党员", "优秀团员"] }
+        score: 10
+        note: "校级·三好学生/优秀学生干部/优秀团员干部/优秀党团员"
+      - match: { level: 院级, titles: ["优党", "优团", "优干"] }
+        score: 6
+        note: "院级·优党/优团/优干"
+      - match: { level: 国家级, titles: ["先进个人"] }
+        score: 15
+        note: "国家级·其他各类先进个人"
+      - match: { level: 省级, titles: ["先进个人"] }
+        score: 12
+        note: "省级·其他各类先进个人"
+      - match: { level: 校级, titles: ["先进个人"] }
+        score: 6
+        note: "校级·其他各类先进个人"
+      - match: { level: 院级, titles: ["先进个人", "先进分子"] }
+        score: 4
+        note: "院级·各类先进个人"
+    exclusions:
+      - "先进分子不含入党积极分子"
+      - "校外授奖单位须为国家机关行政部门或党政、群团组织（教育部、团中央、省教育厅、团省委、省学联等）"
+      - "其他社会组织（行业协会）奖项不予加分"
+      - "学生组织内部评选的「部门优秀个人」等不予加分"
+      - "上一学年综测获得的奖学金荣誉、先进班集体不计入"
+      - "同一项（优秀团员、团干为同一类）获不同级别只计最高，不可重复加分"
+
+  # 2.(2) 集体荣誉 —— 细则 P23；最多叠加两项；单位须为班级/团支部/学生工作组织
+  - id: honor_collective
+    dimension: moral
+    kind: bonus
+    name: 集体荣誉
+    max_items: 2
+    columns: [主要负责人, 其他负责人, 一般成员]
+    note: "细则 P23：主要负责人=班长/副班/团支书等；其他负责人=班干/团支委等"
+    items:
+      - match: { level: 国家级, titles: ["先进班集体", "优秀班集体", "先进集体", "优秀团支部", "红旗团支部"] }
+        scores: [20, 20, 15]
+      - match: { level: 省级, titles: ["先进班集体", "优秀班集体", "先进集体", "优秀团支部", "红旗团支部"] }
+        scores: [15, 12, 8]
+      - match: { level: 校级, titles: ["先进班集体", "优秀班集体", "先进集体", "优秀团支部", "红旗团支部"] }
+        scores: [6, 5, 3]
+
+  # 3. 一般性主题教育 / 文明创建 / 学风建设等文化活动获奖 —— 细则 P24
+  - id: activity_award
+    dimension: moral
+    kind: bonus
+    name: 主题教育活动获奖
+    columns: [一等奖, 二等奖, 三等奖, 最佳优秀优胜类, 参与参评未获奖]
+    note: "细则 P24：辩论、演讲、征文、阅读、书法（信）、知识竞赛、职业规划、文化科普等"
+    items:
+      - match: { level: 国家级, titles: ["辩论", "演讲", "征文", "阅读", "书法", "知识竞赛", "主题教育活动", "文明创建", "学风建设", "职业规划", "文化科普"] }
+        scores: [20, 18, 15, 10, 8]
+      - match: { level: 省级, titles: ["辩论", "演讲", "征文", "阅读", "书法", "知识竞赛", "主题教育活动", "文明创建", "学风建设", "职业规划", "文化科普"] }
+        scores: [15, 12, 10, 6, 4]
+      - match: { level: 校级, titles: ["辩论", "演讲", "征文", "阅读", "书法", "知识竞赛", "主题教育活动", "文明创建", "学风建设", "职业规划", "文化科普"] }
+        scores: [8, 6, 4, 3, 2]
+      - match: { level: 院级, titles: ["辩论", "演讲", "征文", "阅读", "书法", "知识竞赛", "主题教育活动", "文明创建", "学风建设", "职业规划", "文化科普"] }
+        scores: [5, 4, 3, 2, 1]
+    exclusions:
+      - "获奖加分与参与加分不累加；同一活动不同等级按最高计"
+      - "设有特等奖的按一等奖计"
+      - "纯线上（报名即参与）的活动，参与项不计分"
+
+  # 4. 暑期「三下乡」社会实践 —— 细则 P25
+  - id: summer_practice
+    dimension: moral
+    kind: bonus
+    name: 三下乡社会实践
+    columns: [一等奖, 二等奖, 三等奖, 参与队长, 参与队员]
+    note: "细则 P25：队长/副队长在获奖加分基础上额外 +2；获奖与参与不累加；多奖取最高；未设等级按二等奖计"
+    items:
+      - match: { level: 省级, titles: ["三下乡", "暑期社会实践"] }
+        scores: [15, 12, 10, 8, 5]
+      - match: { level: 校级, titles: ["三下乡", "暑期社会实践"] }
+        scores: [10, 8, 6, 5, 3]
+      - match: { level: 院级, titles: ["三下乡", "暑期社会实践"] }
+        scores: [8, 6, 5, 4, 2]
+
+  # 5. 一般性报告文章类（非专业学术论文）—— 细则 P26
+  #    分值 = 刊物级别基础分 × 作者位次比例，两项都读不准 → 人工定分，把折算表摆在 note 里
+  - id: article
+    dimension: moral
+    kind: bonus
+    name: 报告文章类
+    max_items: 1
+    items:
+      - match: { titles: ["发表", "刊登", "刊报", "校报", "广播站", "刊物", "金曦", "调研报告", "汇编"] }
+        manual: true
+        note: >-
+          细则 P26 折算：国家级刊物 15 / 省级 10 / 校报及市属汇编 6 / 《金曦》《校运会快讯》3 / 校广播站 2；
+          两人合作 第一作者 60%·第二作者 40%；三人及以上 第一/第二/第三作者 50%·30%·20%（最多算至第三作者）；
+          同一作品按首发刊物等级计分
+    exclusions:
+      - "该项加分需以学校官方组织开展活动为前提"
+
+  # 6. 单列（单项）类 —— 细则 P27，不区分等级，按性质加分
+  - id: standalone
+    dimension: moral
+    kind: bonus
+    name: 单列类
+    items:
+      - match: { titles: ["重大贡献", "社会贡献"] }
+        score: 15
+        note: "重大（社会）贡献类，需官方部门认定或颁证"
+      - match: { titles: ["见义勇为"] }
+        score: 12
+        note: "见义勇为类，需官方部门认定或颁证"
+      - match: { titles: ["好人好事"] }
+        score: 10
+        note: "好人好事类，需官方部门认定或颁证"
+      - match: { titles: ["献血"] }
+        score: 8
+        note: "无偿献血，仅在综测学年内计分"
+      - match: { titles: ["党校", "青马工程", "优秀学员"] }
+        score: 5
+        note: "党校、青马工程等课程优秀学员，需证书"
+      - match: { titles: ["读书笔记"] }
+        score: 1
+        unit: 篇
+        cap: 5
+        note: "手写 800 字以上经典书籍读书笔记，以「到梦空间」记录为准，学年累计 ≤5 分"
+      - match: { titles: ["讲座", "报告会", "党团学习"] }
+        score: 1
+        unit: 次
+        cap: 5
+        note: "理想信念/人文社科/党团学习讲座，需证明，学年累计 ≤5 分"
+      - match: { titles: ["志愿", "公益", "义工"] }
+        score: 0.25
+        unit: 小时
+        cap: 10
+        note: "公益/志愿活动，学年累计 ≤10 分；30 分钟<时长<1 小时按 1 小时，<30 分钟按半小时"
+
+  # 7. 德育扣分 —— 细则 P28（处分文件一般没有「证书」可拍，多数只能手填）
+  - id: moral_deduction
+    dimension: moral
+    kind: deduction
+    name: 德育扣分
+    items:
+      - match: { titles: ["留校察看"] }
+        score: -50
+        note: "校内处分·留校察看"
+      - match: { titles: ["记过"] }
+        score: -40
+        note: "校内处分·记过"
+      - match: { titles: ["严重警告"] }
+        score: -30
+        note: "校内处分·严重警告"
+      - match: { titles: ["警告"] }
+        score: -20
+        note: "校内处分·警告"
+      - match: { titles: ["学校通报批评"] }
+        score: -5
+        note: "学校通报批评"
+      - match: { titles: ["学院通报批评"] }
+        score: -3
+        note: "学院通报批评"
+      - match: { titles: ["作弊", "违纪", "失信", "剽窃"] }
+        score: -20
+        note: "缺乏诚信 / 考试作弊 / 恶意拖欠学费 / 剽窃他人论文作品"
+
+  # ═══════════════ 智育（细则 P31–P35）═══════════════════════
+
+  # 1. 学科/创新创业/科技/学术/基础学科竞赛 —— 细则 P31
+  - id: competition
+    dimension: intellect
+    kind: bonus
+    name: 学科与创新创业竞赛
+    columns: [一等奖, 二等奖, 三等奖, 优秀最佳类, 参与参评未获奖]
+    note: "细则 P31：特等奖按一等奖计；同一项目不同等级按最高计；获奖与参与不累加"
+    items:
+      - match: { level: 国家级, titles: ["竞赛", "大赛", "比赛", "挑战杯", "互联网+", "数学建模", "蓝桥杯", "创新创业", "学科竞赛", "科技"] }
+        scores: [20, 18, 15, 12, 10]
+      - match: { level: 省级, titles: ["竞赛", "大赛", "比赛", "挑战杯", "互联网+", "数学建模", "蓝桥杯", "创新创业", "学科竞赛", "科技"] }
+        scores: [15, 12, 10, 8, 5]
+      - match: { level: 校级, titles: ["竞赛", "大赛", "比赛", "挑战杯", "互联网+", "数学建模", "蓝桥杯", "创新创业", "学科竞赛", "科技"] }
+        scores: [10, 8, 6, 4, 3]
+      - match: { level: 院级, titles: ["竞赛", "大赛", "比赛", "挑战杯", "互联网+", "数学建模", "蓝桥杯", "创新创业", "学科竞赛", "科技"] }
+        scores: [8, 6, 4, 3, 2]
+    exclusions:
+      - "竞赛项目所属单位须为我校，队长/主持人及成员须为我校在校学生"
+      - "学生挂靠参与校外其他竞赛项目不予以认可加分"
+
+  # 2. 学术科研项目 /「攀登计划」立项 —— 细则 P32（该项无院级）
+  - id: research_project
+    dimension: intellect
+    kind: bonus
+    name: 科研项目立项
+    columns: [国家级负责人, 国家级成员, 省部级负责人, 省部级成员, 市校级负责人, 市校级成员, 参与未获批负责人, 参与未获批成员]
+    note: "细则 P32：以项目立项书署名为准；除指导老师外，排名第一学生即按负责人计分"
+    items:
+      - match: { titles: ["攀登计划", "立项", "科研项目", "大创", "创新创业训练"] }
+        scores: [20, 15, 15, 10, 10, 5, 4, 2]
+      - match: { titles: ["教师科研", "教学课题", "课题"] }
+        score: 3
+        note: "参与教师科研/教学课题，独立完成部分工作并形成成果报告 +3"
+      - match: { titles: ["科技讲座", "创新创业讲座", "培训"] }
+        score: 1
+        unit: 次
+        cap: 5
+        note: "参加科技、创新创业类讲座或培训 +1/次，学年累计 ≤5"
+
+  # 3. 公开发表专业学术论文 / 学术性译文 —— 细则 P33
+  #    需要鉴定刊物级别 + 作者位次折算 → 人工定分
+  - id: paper
+    dimension: intellect
+    kind: bonus
+    name: 学术论文
+    max_items: 1
+    items:
+      - match: { titles: ["学术论文", "论文", "译文", "学术会议", "CN", "ISSN"] }
+        manual: true
+        note: >-
+          细则 P33 折算：国际性国家级 论文20/会议15/译文16/译文会议10；省级（本科学校学报）15/10/12/8；
+          市级（专科学校学报）12/8/10/5。两人合作 60%·40%；三人及以上 50%·30%·20%（最多算至第三作者）。
+          公开刊物发表与会议采用不累加；同篇多次转载按首发刊物等级
+    exclusions:
+      - "论文/译文作者须均为我校在岗在校师生"
+      - "须提供署名「广东金融学院」的刊物原件或学术会议信函"
+
+  # 4. 申请专利 —— 细则 P34
+  - id: patent
+    dimension: intellect
+    kind: bonus
+    name: 专利
+    columns: [个人被授予, 个人被受理, 集体负责人被授予, 集体负责人被受理, 集体其他被授予, 集体其他被受理]
+    note: "细则 P34：专利权人须为广东金融学院；同一科研项目多项发明只加一次；获专利又发论文不累加"
+    items:
+      - match: { titles: ["发明专利"] }
+        scores: [10, 5, 8, 4, 6, 3]
+      - match: { titles: ["实用新型专利", "实用新型"] }
+        scores: [6, null, 4, null, 3, null]
+      - match: { titles: ["外观设计专利", "外观设计"] }
+        scores: [4, null, 3, null, 2, null]
+
+  # 5. 外语等级证书 —— 细则 P35；同年多项只计最高
+  - id: foreign_lang
+    dimension: intellect
+    kind: bonus
+    name: 外语等级证书
+    max_items: 1
+    columns: [四级, 六级, 专业四级]
+    note: "细则 P35：同一学年内通过两项及以上只计最高"
+    items:
+      - match: { titles: ["四级", "六级", "专业四级", "CET", "TEM", "英语"] }
+        scores: [5, 8, 10]
+
+  # 6. 专业/职业技能证书 —— 细则 P35
+  - id: skill_cert
+    dimension: intellect
+    kind: bonus
+    name: 职业技能证书
+    max_items: 1
+    columns: [初级, 中级, 高级]
+    note: "细则 P35：本学年考取国家相关部门认可的职业资格证、专业技能证"
+    items:
+      - match: { titles: ["职业资格", "技能证", "职业证书", "初级", "中级", "高级"] }
+        scores: [5, 8, 10]
+
+  # ═══════════════ 体育（细则 P36–P37）═══════════════════════
+
+  # 1. 校内外（官方）大型运动会 —— 细则 P36
+  - id: sports_meet
+    dimension: physique
+    kind: bonus
+    name: 大型运动会
+    columns: [破记录, 第一名, 第二名, 第三名, 第四名, 第五名, 第六名, 参与未获奖, 裁判员]
+    note: "细则 P36：破纪录与获奖为荣誉加分；获奖与参与不可累加"
+    items:
+      - match: { level: 国家级, titles: ["运动会", "体育竞赛", "纪录", "锦标赛", "裁判员", "运动员"] }
+        scores: [35, 25, 24, 23, 22, 21, 20, 20, 8]
+      - match: { level: 省级, titles: ["运动会", "体育竞赛", "纪录", "锦标赛", "裁判员", "运动员"] }
+        scores: [25, 15, 14, 13, 12, 11, 10, 10, 5]
+      - match: { level: 校级, titles: ["运动会", "体育竞赛", "纪录", "锦标赛", "裁判员", "运动员"] }
+        scores: [15, 8, 7, 6, 5, 4, 3, 2, 4]
+      - match: { level: 院级, titles: ["运动会", "体育竞赛", "纪录", "锦标赛", "裁判员", "运动员"] }
+        scores: [10, 6, 5, 4, 3, 2, 1, 1, 2]
+
+  # 2. 一般性体育项目比赛（球类、趣味运动、越野等）—— 细则 P37
+  - id: sports_general
+    dimension: physique
+    kind: bonus
+    name: 一般性体育比赛
+    columns: [一等奖, 二等奖, 三等奖, 优秀最佳类, 参与参评未获奖]
+    note: "细则 P37：获奖与参与不累加；有特等奖按一等奖计"
+    items:
+      - match: { level: 国家级, titles: ["球赛", "篮球", "足球", "排球", "羽毛球", "乒乓球", "趣味运动", "越野", "体育"] }
+        scores: [20, 18, 15, 12, 10]
+      - match: { level: 省级, titles: ["球赛", "篮球", "足球", "排球", "羽毛球", "乒乓球", "趣味运动", "越野", "体育"] }
+        scores: [15, 12, 10, 8, 5]
+      - match: { level: 校级, titles: ["球赛", "篮球", "足球", "排球", "羽毛球", "乒乓球", "趣味运动", "越野", "体育"] }
+        scores: [8, 7, 6, 4, 3]
+      - match: { level: 院级, titles: ["球赛", "篮球", "足球", "排球", "羽毛球", "乒乓球", "趣味运动", "越野", "体育"] }
+        scores: [6, 5, 4, 3, 2]
+
+  # 3. 体育扣分 —— 细则 P37
+  - id: physique_deduction
+    dimension: physique
+    kind: deduction
+    name: 体育扣分
+    items:
+      - match: { titles: ["体质健康", "体测未达标", "体测不合格"] }
+        score: -3
+        note: "大学生体质健康标准未达标 -3 分/人"
+      - match: { titles: ["无故缺席", "未参加体育活动"] }
+        score: -5
+        note: "已报名运动员无故缺席 -5 分/人；学校/学院统一参加而不参加 -2 分/人"
+
+  # ═══════════════ 美育（细则 P38）═══════════════════════════
+
+  # 1. 美育活动（音乐舞蹈、摄影摄像、绘画广告设计、影剧鉴赏）—— 细则 P38
+  - id: aesthetic_award
+    dimension: aesthetic
+    kind: bonus
+    name: 美育活动获奖
+    columns: [一等奖, 二等奖, 三等奖, 优秀最佳类, 参与参评未获奖]
+    note: "细则 P38：获奖与参与不累加；有特等奖按一等奖计；纯线上活动参与不计分"
+    items:
+      - match: { level: 国家级, titles: ["音乐", "舞蹈", "摄影", "摄像", "绘画", "广告设计", "影剧", "文艺", "艺术", "书画", "歌唱", "合唱"] }
+        scores: [20, 18, 15, 12, 10]
+      - match: { level: 省级, titles: ["音乐", "舞蹈", "摄影", "摄像", "绘画", "广告设计", "影剧", "文艺", "艺术", "书画", "歌唱", "合唱"] }
+        scores: [15, 12, 10, 8, 5]
+      - match: { level: 校级, titles: ["音乐", "舞蹈", "摄影", "摄像", "绘画", "广告设计", "影剧", "文艺", "艺术", "书画", "歌唱", "合唱"] }
+        scores: [8, 7, 6, 4, 3]
+      - match: { level: 院级, titles: ["音乐", "舞蹈", "摄影", "摄像", "绘画", "广告设计", "影剧", "文艺", "艺术", "书画", "歌唱", "合唱"] }
+        scores: [6, 5, 4, 3, 2]
+
+  # 2. 美育扣分 —— 细则 P38
+  - id: aesthetic_deduction
+    dimension: aesthetic
+    kind: deduction
+    name: 美育扣分
+    items:
+      - match: { titles: ["文艺活动未参加", "无故不参加文艺"] }
+        score: -2
+        note: "学校/学院要求统一参加的文艺活动而不参加 -2 分/次/人"
+      - match: { titles: ["无故缺席"] }
+        score: -5
+        note: "已报名参加比赛无故缺席 -5 分/次/人"
+
+  # ═══════════════ 劳育（细则 P39）═══════════════════════════
+
+  # 1. 星级宿舍评比 —— 细则 P39
+  - id: dorm_star
+    dimension: labour
+    kind: bonus
+    name: 星级宿舍
+    columns: [寝室长, 普通成员]
+    note: "细则 P39：按宿舍获评星级计分"
+    items:
+      - match: { titles: ["五星宿舍", "五星级宿舍"] }
+        scores: [10, 8]
+        note: "校级五星宿舍"
+      - match: { titles: ["四星宿舍", "四星级宿舍"] }
+        scores: [8, 6]
+        note: "校级四星宿舍"
+      - match: { titles: ["三星宿舍", "三星级宿舍"] }
+        scores: [6, 4]
+        note: "校级三星宿舍"
+      - match: { titles: ["院级五星"] }
+        scores: [5, 3]
+        note: "院级五星宿舍"
+
+  # 2. 劳动模范或同等级类似称号 —— 细则 P39
+  - id: labour_model
+    dimension: labour
+    kind: bonus
+    name: 劳动模范
+    items:
+      - match: { level: 国家级, titles: ["劳动模范", "劳模"] }
+        score: 25
+        note: "国家级劳动模范或同等级类似称号"
+      - match: { level: 省级, titles: ["劳动模范", "劳模"] }
+        score: 20
+        note: "省部级劳动模范或同等级类似称号"
+      - match: { level: 市级, titles: ["劳动模范", "劳模"] }
+        score: 15
+        note: "地市级劳动模范或同等级类似称号"
+      - match: { level: 校级, titles: ["劳动模范", "劳模"] }
+        score: 10
+        note: "校级劳动模范或同等级类似称号"
+
+  # 3. 劳育扣分 —— 细则 P39
+  - id: labour_deduction
+    dimension: labour
+    kind: deduction
+    name: 劳育扣分
+    items:
+      - match: { titles: ["不合格宿舍", "不文明宿舍", "宿舍不合格"] }
+        score: -10
+        note: "文明宿舍评比中不合格，宿舍成员各 -10 分/次"
+      - match: { titles: ["无故不参加集体劳动", "未参加集体劳动"] }
+        score: -20
+        note: "无故不参加集体劳动活动 -20 分/次"
+
+review_policy:
+  human_confirm_required: true     # 依据学院制度：班委负责审查分值是否有误
+  never_auto_final: true           # 输出一律为「待复核草稿」，不自动定稿
+  output_per_item:
+    - 加分项类别与名称
+    - 分值
+    - 依据（细则条目 + 原文摘录）
+    - 时间窗口判定（in_window: true/false/uncertain）
+    - 置信度与待确认标记
+
+# ── 回归测试用例（金标准，单测直接引用）────────────────────
+test_cases:
+  - material: "聘书（融媒体中心干事）"
+    date: "2025-10-01"
+    matched_rule: "student_officer · 院级·干事"
+    score: 5
+    in_window: true
+  - material: "聘书（班主任助理）"
+    date: "2025-09-01"
+    matched_rule: "student_officer · 班级·学习委员/班主任助理"
+    score: 10
+    in_window: true
+  - material: "荣誉证书（军训先进个人）"
+    date: "2024-09-24"
+    issuer: "广东金融学院学生工作部（处）"
+    matched_rule: "honor_individual · 校级其他各类先进个人"
+    score: 6
+    in_window: false              # 2024-09-24 属 2024-2025 学年，超出 2025-2026 窗口
+  - material: "获奖证书（校园摄影大赛三等奖）"
+    date: "2026-05-20"
+    matched_rule: "aesthetic_award · 校级三等奖"
+    score: 6
+    in_window: true

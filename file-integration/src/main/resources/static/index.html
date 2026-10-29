@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>综测材料整理</title>
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app">
+
+    <!-- ══ 左侧：步骤导航 + 环境状态 ═══════════════════════════ -->
+    <aside class="side">
+        <div class="brand">
+            <div class="mark">综</div>
+            <div class="brand-txt">
+                <div class="bt">综测材料整理</div>
+                <div class="bs">本地运行 · 材料不外传</div>
+            </div>
+        </div>
+
+        <nav class="steps" id="steps" aria-label="步骤导航"></nav>
+
+        <div class="side-foot">
+            <div class="hl"><span class="hl-k">监听</span><span class="hl-v">127.0.0.1:<span id="port">-</span></span></div>
+            <div class="hl"><span class="hl-k">规则</span><span class="hl-v" id="rules" data-state="warn">读取中…</span></div>
+            <div class="hl"><span class="hl-k">模型</span><span class="hl-v" id="llm" data-state="warn">读取中…</span></div>
+            <div class="build">界面版本 2026-10-29a</div>
+        </div>
+    </aside>
+
+    <!-- ══ 右侧：工作区 ═════════════════════════════════════════ -->
+    <main class="main">
+        <div class="main-inner">
+
+            <div class="alert" id="alert">
+                <div class="t">配置有问题</div>
+                <div id="alert-body"></div>
+            </div>
+
+            <!-- ① 我的信息 -->
+            <section class="sec" id="sec-owner" data-no="1" data-name="我的信息">
+                <header class="sec-head">
+                    <div class="sec-no">1</div>
+                    <div>
+                        <h2>我的信息</h2>
+                        <p class="sec-sub">填一次，所有材料统一采用这里的姓名，不靠模型去读</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="grid2">
+                            <div class="field">
+                                <label>姓名（必填）</label>
+                                <input type="text" id="ow-name" placeholder="例如：张三" maxlength="20">
+                            </div>
+                            <div class="field">
+                                <label>学号</label>
+                                <input type="text" id="ow-sid" placeholder="例如：2024xxxxxx" maxlength="30">
+                            </div>
+                            <div class="field">
+                                <label>班级</label>
+                                <input type="text" id="ow-class" placeholder="例如：计科 2 班" maxlength="40">
+                            </div>
+                            <div class="field">
+                                <label>学院</label>
+                                <input type="text" id="ow-college" placeholder="例如：计算机学院" maxlength="40">
+                            </div>
+                            <div class="field">
+                                <label>年级</label>
+                                <input type="text" id="ow-grade" placeholder="例如：2024 级" maxlength="20">
+                            </div>
+                        </div>
+                        <div class="picker">
+                            <button class="primary" id="ow-save">保存</button>
+                        </div>
+                        <div class="msg" id="ow-msg">姓名填上以后，材料里读到的姓名跟它对不上时会提示你确认（可能是别人的材料混进来了）。</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ② 模型配置 -->
+            <section class="sec" id="sec-llm" data-no="2" data-name="模型配置">
+                <header class="sec-head">
+                    <div class="sec-no">2</div>
+                    <div>
+                        <h2>模型配置</h2>
+                        <p class="sec-sub">用自己的 Key（BYOK）· 可存多套，随时切换</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body">
+                        <div id="profiles"><div class="state">读取中…</div></div>
+
+                        <div class="picker">
+                            <button class="primary" id="prof-new">＋ 新增配置</button>
+                            <button id="key-clear-all" style="display:none">全部清除</button>
+                        </div>
+
+                        <div id="key-form" style="display:none">
+                            <hr class="sep">
+                            <div class="form-title" id="form-title">新增配置</div>
+
+                            <div class="field">
+                                <label>名称（可选，方便区分）</label>
+                                <input type="text" id="key-name" placeholder="例如：我的 DeepSeek" maxlength="40">
+                            </div>
+                            <div class="field">
+                                <label>厂商</label>
+                                <select id="key-provider">
+                                    <option value="deepseek">DeepSeek</option>
+                                    <option value="doubao">豆包（火山方舟）</option>
+                                    <option value="openai">OpenAI</option>
+                                    <option value="claude">Claude（经 OpenRouter）</option>
+                                    <option value="custom">自定义 / 兼容网关</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>API Key</label>
+                                <input type="password" id="key-input" placeholder="粘贴 API Key" autocomplete="off" spellcheck="false">
+                                <span class="hint" id="key-input-hint" style="display:none">留空表示不修改已保存的 Key</span>
+                            </div>
+                            <div class="field">
+                                <label>接口地址 baseUrl</label>
+                                <input type="text" id="key-baseurl" placeholder="选厂商自动带出，可改">
+                            </div>
+                            <div class="field">
+                                <label>模型名 model</label>
+                                <input type="text" id="key-model" placeholder="选厂商自动带出，可改">
+                            </div>
+                            <div class="picker">
+                                <button class="primary" id="key-save">保存并测试</button>
+                                <button id="key-cancel">取消</button>
+                            </div>
+                            <div class="msg" id="key-msg"></div>
+                        </div>
+
+                        <div class="msg" id="key-note">
+                            Key 会用 Windows DPAPI 加密保存在本机，只有当前 Windows 用户能解开。保存时会立刻测一次连通性，测不通就自动回滚，不会留下坏配置。
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ③ 评分规则 -->
+            <section class="sec" id="sec-rules" data-no="3" data-name="评分规则">
+                <header class="sec-head">
+                    <div class="sec-no">3</div>
+                    <div>
+                        <h2>评分规则</h2>
+                        <p class="sec-sub">换学院、换年份时传一份新细则，自动转成规则 · 每年一次</p>
+                    </div>
+                </header>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="rules-cur" id="rules-cur">
+                            <span class="hint">正在读取当前规则…</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="zone" id="rules-zone">
+                            <div class="zone-t">把学院评分细则拖到这里，或 <span class="link" id="rules-pick">点击选择</span></div>
+                            <div class="zone-s">pdf / docx / 图片均可 · 单个 ≤ 30MB · 建议用带评分表的学院细则，不是学校总办法</div>
+                            <input type="file" id="rules-file" hidden accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp">
+                        </div>
+                        <div class="picker">
+                            <button class="primary" id="rules-import" disabled>开始转换</button>
+                            <span class="hint" id="rules-hint"></span>
+                        </div>
+                        <div class="msg" id="rules-msg">
+                            细则通常 20 到 40 页，转换要 1 分钟出头（会并发读）。转换只生成草稿，不会改动当前规则。
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" id="rules-draft-card" style="display:none">
+                    <div class="card-body">
+                        <div class="draft-head">
+                            <div>
+                                <div class="card-t" style="margin:0">核对识别结果</div>
+                                <div class="hint" id="rules-stat"></div>
+                            </div>
+                            <div class="picker" style="margin:0">
+                                <button class="mini" id="rules-toggle">全部展开</button>
+                            </div>
+                        </div>
+
+                        <div class="alert" id="rules-warn" style="display:none">
+                            <div class="t">这几处需要你确认</div>
+                            <div id="rules-warn-body"></div>
+                        </div>
+
+                        <div id="rules-groups" class="rules-groups"></div>
+
+                        <div class="rules-save">
+                            <div class="field">
+                                <label>学院名称（写进配置，页面上显示用）</label>
+                                <input type="text" id="rules-college" class="fi-plain" placeholder="如：计算机学院">
+                            </div>
+                            <div class="picker">
+                                <button class="primary" id="rules-save">确认无误，保存并生效</button>
+                                <button id="rules-discard">放弃这次转换</button>
+                            </div>
+                            <div class="msg" id="rules-save-msg"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ④ 上传材料 -->
+            <section class="sec" id="sec-upload" data-no="4" data-name="上传材料">
+                <header class="sec-head">
+                    <div class="sec-no">4</div>
+                    <div>
+                        <h2>上传材料</h2>
+                        <p class="sec-sub">可一次选多份 · 同时识别 3 份，扫完统一确认</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="zone" id="zone">
+                            <div class="zone-t">把证书照片 / PDF 拖到这里，或 <span class="link" id="pick">点击选择文件</span></div>
+                            <div class="zone-s">支持 jpg / png / webp、pdf、doc / docx（Word 需本机装 LibreOffice）· 单个 ≤ 20MB</div>
+                            <input type="file" id="file" multiple hidden
+                                   accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp">
+                        </div>
+                        <div class="picker">
+                            <button class="primary" id="btn" disabled>开始识别</button>
+                            <button id="btn-clear" disabled>清空队列</button>
+                            <span class="hint" id="queue-hint"></span>
+                        </div>
+                        <div class="msg" id="msg">先选文件。识别过程中别关页面——单份约 5 到 10 秒，同时跑 3 份。</div>
+                        <div id="queue"></div>
+                        <div class="sum" id="sum" style="display:none"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ④ 待确认 -->
+            <section class="sec" id="sec-review" data-no="5" data-name="待确认" style="display:none">
+                <header class="sec-head">
+                    <div class="sec-no">5</div>
+                    <div>
+                        <h2>待确认 <span class="badge warn" id="review-count">0 项</span></h2>
+                        <p class="sec-sub">模型不确定或没读到的字段 · 改完即最终结果</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body" id="review"></div>
+                </div>
+            </section>
+
+            <!-- ⑤ 算分 -->
+            <section class="sec" id="sec-score" data-no="6" data-name="算分">
+                <header class="sec-head">
+                    <div class="sec-no">6</div>
+                    <div>
+                        <h2>算分</h2>
+                        <p class="sec-sub">材料 → 细则 → 分数 · 每条都能追到依据</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="grid2">
+                            <div class="field">
+                                <label>评测学年</label>
+                                <select id="sc-year"></select>
+                            </div>
+                            <div class="field">
+                                <label>当前细则</label>
+                                <input type="text" id="sc-rule" readonly
+                                       style="background:var(--surface-2);color:var(--ink-3)">
+                            </div>
+                        </div>
+
+                        <div id="sc-inputs"></div>
+
+                        <div class="picker">
+                            <button class="primary" id="sc-btn">开始算分</button>
+                            <span class="hint" id="sc-hint"></span>
+                        </div>
+                        <div class="msg" id="sc-msg">
+                            基础分 / 互评分这类数字证书上没有，需要你手填。加分会自动从材料里算。
+                        </div>
+                        <div id="sc-result"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ⑥ 导出 -->
+            <section class="sec" id="sec-export" data-no="7" data-name="导出">
+                <header class="sec-head">
+                    <div class="sec-no">7</div>
+                    <div>
+                        <h2>导出</h2>
+                        <p class="sec-sub">按学院规格打包：五个文件夹 + 综测评定表</p>
+                    </div>
+                </header>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="picker" style="margin-top:0">
+                            <button id="ex-preview">预览打包结构</button>
+                            <button class="primary" id="ex-btn">导出 zip</button>
+                            <span class="hint" id="ex-hint"></span>
+                        </div>
+                        <div class="msg" id="ex-msg">
+                            先在上面算一次分，再导出。压缩包按「学号_姓名」命名，需先在「我的信息」里填学号。
+                        </div>
+                        <div id="ex-result"></div>
+                    </div>
+                </div>
+            </section>
+
+            <footer class="foot">
+                <b>算分结果一律是「待复核草稿」</b>，最终分值以班委审核为准。识别只把证书图片发往你配置的模型，
+                其他数据不离开本机。关闭本页后程序会自动退出。
+            </footer>
+
+        </div>
+    </main>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+# 广东金融学院 · 学校层配置
+# 依据：材料2《综测评定注意事项》原文 3 页（2026-10-26 提取）
+# 变更频率：校级文件年更时改这里；学院层在 configs/广东金融学院/<学院>.yaml
+
+meta:
+  school: 广东金融学院
+  scope: school
+  source_file: "材料2：综测评定注意事项.pdf"
+  extracted_at: "2026-10-26"
+
+# ── 五维权重（原文第 1 页）──────────────────────────────
+# 总成绩 = 德×20% + 智×60% + 体×10% + 美×5% + 劳×5%
+weights:
+  moral: 0.20
+  intellectual: 0.60
+  physical: 0.10
+  aesthetic: 0.05
+  labor: 0.05
+
+# ── 提交物规格（原文第 3 页，生成层的验收标准）──────────
+package_spec:
+  zip_name: "{studentNo}_{name}"
+  # ⚠ 注意顺序：美育在体育之前。与"德智体美劳"的日常说法不同，
+  #   也与上面的权重顺序（德智体美劳）不同，两处别用同一个常量。
+  folder_order: [德育, 智育, 美育, 体育, 劳育]
+  # 原文"按评定表中填写的顺序排放" —— 不是按文件名排序
+  inner_order: by_detail_table
+  material_naming: "材料{index}：{activity}＋{award_or_role}"
+  material_naming_example: "材料1：蓝桥杯+国赛一等奖"
+  # 原文"具体加分项目请先在加分明细中罗列，总表中的加分项目不填"
+  summary_fills_bonus: false
+  summary_table_included: true
+
+# ── 通用约束（跨所有维度，规则引擎每次都要检查）─────────
+global_constraints:
+  time_window: true                  # 证书日期/任期须落在评测学年内
+  same_category_highest_only: true   # 同类取最高，不累计
+  proof_required: true               # 无证明材料则加分无效
+  role_needs_no_proof: true          # 例外：职务类无需证明材料
+  multi_person_circle_self: true     # 多人文件须框出本人姓名
+  # 未匹配到规则时的行为：绝不静默丢弃
+  unmatched_policy: report_and_review

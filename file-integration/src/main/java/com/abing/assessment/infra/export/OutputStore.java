@@ -11,13 +11,10 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
 /**
- * 导出的 zip 在本机留一份副本。
+ * 导出的 zip 在本机留一份副本：浏览器下载目录用户常常找不到，下载失败更是手里什么都没有。
+ * 每次导出写一份到 {@code %LOCALAPPDATA%\Assessment\output}，页面把路径告诉用户。
  *
- * <p>浏览器下载走的是"下载目录"，用户经常找不到；而且如果下载失败，
- * 手里就什么都没有了。所以每次导出都往 {@code %LOCALAPPDATA%\Assessment\output}
- * 写一份，页面上把路径告诉用户。
- *
- * <p>只留业务产物，<b>不含任何配置或 Key</b>（架构文档要求 2：Key 的四个出口全部排除）。
+ * <p>只留业务产物，<b>不含任何配置或 Key</b>。
  */
 @Component
 public class OutputStore {

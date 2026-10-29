@@ -14,10 +14,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 本人信息（姓名 / 学号 / 班级 / 学院 / 年级）。
- *
- * <p>填一次，全流程复用：批量材料统一采用这里的姓名，
- * 不再要求模型把名字"读准"，只在识别值与它不一致时提示用户确认。
+ * 本人信息（姓名 / 学号 / 班级 / 学院 / 年级）。填一次全流程复用：材料统一采用这里的姓名，
+ * 只在识别值与它不一致时提示确认。
  */
 @RestController
 @RequestMapping("/api/profile")

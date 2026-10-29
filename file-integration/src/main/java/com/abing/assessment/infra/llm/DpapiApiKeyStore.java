@@ -13,16 +13,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * 用 Windows DPAPI 保存 API Key。
+ * 用 Windows DPAPI 保存 API Key。不自己写 AES：AES 的密钥总得放在某处，
+ * 塞进 jar 等于把钥匙和箱子一起送人；DPAPI 用系统托管的用户主密钥。
  *
- * <p><b>为什么不是自己写 AES</b>：AES 的密钥总得放在某处，放进 jar 里等于把钥匙和箱子
- * 一起给人。DPAPI 用的是 Windows 用户主密钥，由系统托管，只有同一台机器的同一个用户
- * 能解开——拷走文件、换用户、换机器都不行。
- *
- * <p><b>诚实边界</b>：这不是"防得住本机木马"。攻击者如果能以你的身份运行程序，
- * 也能调同一个 DPAPI 解开。它防的是"疏忽"：误传文件、看日志、拷给别人。
- *
- * <p>非 Windows 环境退化为"仅内存保存"，重启后重输——宁可麻烦，不明文落盘。
+ * <p>边界诚实：挡不住以你身份运行的程序，防的是疏忽（误传文件、看日志、拷给别人）。
+ * 非 Windows 退化为仅内存保存，重启重输——宁可麻烦，不明文落盘。
  */
 @Component
 public class DpapiApiKeyStore implements ApiKeyStore {

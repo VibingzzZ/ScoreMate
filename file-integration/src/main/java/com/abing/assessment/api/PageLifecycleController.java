@@ -16,26 +16,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 页面生命周期：用户关掉页面后，进程自动退出。
+ * 页面生命周期：关掉页面后进程自动退出（页面没了没必要留个后台进程占端口）。
  *
- * <p>本工具是「双击 exe → 弹一个本地页面」的形态，页面没了就没必要留着服务进程
- * （白占端口、留个后台进程，用户会以为没关掉）。
- *
- * <p>但"没心跳就杀"是不可行的，三个场景会误杀，所以这里分三态判定：
+ * <p>裸的"没心跳就杀"会误杀三种场景，所以按三态判定：
  * <ol>
- *   <li><b>正常关页</b>：pagehide 时前端用 sendBeacon 打 /api/bye，
- *       宽限期（默认 8 秒）内没有新心跳 → 退出</li>
- *   <li><b>刷新页面</b>：刷新也会触发 pagehide，但新页面几百毫秒内就 /api/beat，
- *       心跳晚于 bye → 取消退出，刷新不会误杀</li>
- *   <li><b>切到后台</b>：浏览器会把后台标签的定时器限流到约 1 次/分钟，
- *       光靠心跳超时会误杀。所以前端在 visibilitychange 时主动上报 visible=false，
- *       隐藏状态不计超时（只是浏览器崩了才会被 {@code visible-timeout} 兜底）</li>
+ *   <li>正常关页 —— pagehide 时 sendBeacon 打 /api/bye，宽限期（8s）内无新心跳则退出</li>
+ *   <li>刷新 —— 也触发 pagehide，但新页面立刻 /api/beat，心跳晚于 bye 即取消退出</li>
+ *   <li>切后台 —— 浏览器把后台定时器限流到约 1 次/分钟，故前端在 visibilitychange
+ *       上报 visible=false，隐藏状态不计超时，仅 {@code visible-timeout} 兜浏览器崩溃</li>
  * </ol>
  *
- * <p>多标签页：任何一个标签还在心跳，都会把 lastBeatAt 刷新到 bye 之后，从而取消退出。
- *
- * <p>从未有过心跳（0）时永不退出——这样开发期用 curl 调接口、
- * 或 {@code assessment.open-browser=false} 的无头启动不会被误杀。
+ * <p>任一标签还在心跳都会取消退出（多标签页安全）。从未有过心跳（0）时永不退出，
+ * 方便 curl 调试与 {@code --assessment.open-browser=false} 的无头启动。
  */
 @RestController
 public class PageLifecycleController {

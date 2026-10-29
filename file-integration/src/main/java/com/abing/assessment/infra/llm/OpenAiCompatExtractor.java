@@ -28,18 +28,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OpenAI 兼容协议的视觉模型接入（DeepSeek / 豆包 / OpenAI / 经网关的 Claude 都走这套）。
+ * OpenAI 兼容协议的视觉模型接入（DeepSeek / 豆包 / OpenAI / 经网关的 Claude）。
+ * 用 JDK 自带 {@link HttpClient}，不引第三方 HTTP 库：少一个依赖，超时也明确可控。
  *
- * <p>用 JDK 自带的 {@link HttpClient}，不引第三方 HTTP 库：少一个依赖，少一处升级风险，
- * 而且超时行为明确可控。
- *
- * <p>四个刻意的约束：
- * <ol>
- *   <li>prompt 从 {@code configs/prompt/} 读，改 prompt 不用重新打包</li>
- *   <li>Key / 地址 / 模型来自 {@link ApiKeyProvider} 的当前档案（页面填的优先，其次环境变量），本类不持有</li>
- *   <li>日志里只出现 model / status / 耗时 / token，<b>永不出现 Key</b></li>
- *   <li>错误按 HTTP 状态分类成用户能行动的话（401 和 404 长得像但原因完全不同）</li>
- * </ol>
+ * <p>四条约束：prompt 从 {@code configs/prompt/} 读（改 prompt 不用重打包）；
+ * Key / 地址 / 模型取自 {@link ApiKeyProvider}，本类不持有；日志只出现 model / status /
+ * 耗时 / token，<b>永不出现 Key</b>；错误按 HTTP 状态翻成用户能行动的话。
  */
 @Component
 public class OpenAiCompatExtractor implements Extractor {

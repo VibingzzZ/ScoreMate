@@ -3,14 +3,13 @@ package com.abing.assessment.infra.material;
 import java.util.List;
 
 /**
- * 归一化结果：已经渲染好的页面图片 + 材料一共有多少页。
+ * 归一化结果：渲染好的页面图片 + 材料总页数。
  *
- * <p>为什么要把「总页数」单独带出来：一份 30 页的 PDF 只识别前 5 页，
- * 但页面上必须能告诉用户「共 30 页，仅识别前 5 页」——只给 images 的话，
- * 调用方看到的永远是 5，就没法判断是不是被截断了。
+ * <p>总页数必须单独带出：30 页的 PDF 只识别前 5 页，不能只凭 images.size() 判断，
+ * 否则无法提示「共 30 页，仅识别前 5 页」。
  *
- * @param images     每页一张 PNG，最多 {@code maxPages} 张
- * @param totalPages 材料实际页数（可能大于 images.size()）
+ * @param images     每页一张 JPEG，最多 {@code maxPages} 张
+ * @param totalPages 实际页数（可能大于 images.size()）
  */
 public record NormalizedMaterial(List<byte[]> images, int totalPages) {
 

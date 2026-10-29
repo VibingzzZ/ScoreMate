@@ -1,16 +1,13 @@
 package com.abing.assessment.domain.model;
 
 /**
- * 一条扣分事由。
+ * 一条扣分事由。扣分基本读不出来（宿舍不合格、体测未达标都是认定的，没证书可拍），
+ * 所以以<b>用户手填</b>为主；事由文字必填——评定表要求写「1、xxxx.xx.xx，因xx留校察看」，
+ * 只填数字会被退回。
  *
- * <p>扣分几乎不可能从材料里读出来——「宿舍不合格」「无故不参加集体劳动」「体测未达标」
- * 这些是班委/宿管认定的，没有证书可拍。所以扣分以<b>用户手填</b>为主，
- * 但必须带上事由文字：官方评定表的扣分列要求写「1、xxxx.xx.xx(时间)，因xx留校察看」，
- * 只填一个数字会被退回。
- *
- * @param dimension 归属维度（moral / intellect / physique / aesthetic / labour）
+ * @param dimension 归属维度
  * @param reason    事由原文，直接写进评定表
- * @param points    扣多少分，<b>填正数</b>（例如 20 表示扣 20 分）；公式里统一按减号处理
+ * @param points    扣多少分，<b>填正数</b>（20 表示扣 20 分），计算时统一按减号处理
  */
 public record PenaltyEntry(String dimension, String reason, Double points) {
 

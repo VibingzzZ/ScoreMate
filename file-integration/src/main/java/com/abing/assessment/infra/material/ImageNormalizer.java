@@ -9,11 +9,8 @@ import java.io.InputStream;
 import java.util.List;
 
 /**
- * 图片 → 统一整形后的一张 JPEG。
- *
- * <p><b>不再原样透传</b>：用户手机直出的是 4000×3000、三五 MB 的照片，原样发给模型
- * 既慢（模型侧要自己缩）又没必要。统一压到长边 {@link ImageOps#MAX_LONG_EDGE}，
- * 手机照片的耗时从 21 秒降到 6 秒，证书小字仍然可读。
+ * 图片 → 整形后的一张 JPEG。不再原样透传：手机直出的 4000×3000 照片原样发出去，
+ * 模型侧还要自己缩。压到长边 {@link ImageOps#MAX_LONG_EDGE} 后耗时 21s → 6s，小字仍可读。
  */
 @Component
 public class ImageNormalizer implements MaterialNormalizer {

@@ -3,11 +3,8 @@ package com.abing.assessment.infra.llm;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 模型接入配置。
- *
- * <p><b>api-key 只从环境变量读</b>（application.yaml 里写的是 {@code ${LLM_API_KEY:}}），
- * 绝不把 Key 写进配置文件、也不写进仓库。这是 BYOK 模式下的硬要求：
- * 泄露的是用户自己的钱（见架构文档 §2.7）。
+ * 模型接入配置。api-key 只从环境变量读（{@code ${LLM_API_KEY:}}），
+ * 不进配置文件也不进仓库——泄露的是用户自己的钱。
  */
 @ConfigurationProperties(prefix = "llm")
 public record LlmProperties(

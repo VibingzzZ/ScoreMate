@@ -3,12 +3,10 @@ package com.abing.assessment.infra.llm;
 import com.abing.assessment.domain.model.ExtractionResult;
 
 /**
- * 材料抽取端口。
+ * 材料抽取端口。domain 只依赖它，不关心背后是云端 API、Dify 还是本地 Ollama；
+ * 换模型 = 换实现或改配置（ADR-4）。
  *
- * <p>domain 只依赖这个接口，不知道背后是云端 API、Dify 工作流还是本机 Ollama。
- * 换模型/换供应商 = 换实现或改配置，业务代码不动（架构文档 ADR-4）。
- *
- * <p>实现类必须保证：<b>不把 API Key 写进日志、异常消息、返回值</b>。
+ * <p>实现类必须保证：<b>不把 Key 写进日志、异常消息、返回值</b>。
  */
 public interface Extractor {
 
@@ -23,18 +21,17 @@ public interface Extractor {
     ExtractionResult extract(byte[] image, String mimeType);
 
     /**
-     * 用指定的 prompt 抽一张图，返回模型原始文本（不做固定 schema 解析）。
+     * 用指定 prompt 抽一张图，返回模型原始文本（不做固定 schema 解析）。
      *
-     * <p>为什么要有这个口子：材料抽取的字段是固定的（{@code ExtractedFact}），
-     * 而「把评分细则表转成规则」是完全不同的 schema，且 prompt 更长、输出更大、
-     * 还要带页码上下文。与其为它再写一份 HttpClient + Key 管理 + 重试 + thinking 开关，
-     * 不如把「怎么调模型」这部分复用出来——Key 管理只有一处，才不会漏打日志或漏关思考。
+     * <p>给「细则转规则」复用：那套 schema 与 {@code ExtractedFact} 完全不同，prompt 更长、
+     * 输出更大。与其再写一份 HttpClient + Key 管理 + 重试 + thinking 开关，不如复用这一处——
+     * Key 管理只有一份，才不会漏打日志或漏关思考。
      *
      * @param image     图片字节
-     * @param mimeType  例如 image/jpeg
-     * @param prompt    完整 prompt（调用方负责拼好上下文）
-     * @param maxTokens 本次输出预算（规则页可能一次吐几十条，需要比材料抽取大）
-     * @return 模型返回的正文文本 + 本次调用信息
+     * @param mimeType  如 image/jpeg
+     * @param prompt    完整 prompt（上下文由调用方拼好）
+     * @param maxTokens 输出预算（规则页一次可能吐几十条）
+     * @return 正文文本 + 本次调用信息
      */
     RawExtraction extractRaw(byte[] image, String mimeType, String prompt, int maxTokens);
 

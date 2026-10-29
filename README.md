@@ -281,7 +281,7 @@ rule_groups:              # 加分 / 扣分条目
 │   └── build-app.sh         打包成 exe
 ├── probe/                   识别准确率探针（金标准 + 样例）
 ├── db/                      数据库脚本
-└── docs/                    设计文档与需求评估
+└── docs/                    设计文档（README.md 是索引，archive/ 是历史档）
 ```
 
 运行时文件（不随仓库分发）：

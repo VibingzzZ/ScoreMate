@@ -21,14 +21,10 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Word(.doc / .docx) → 图片列表。
+ * Word(.doc / .docx) → 图片列表：先借 LibreOffice 转 PDF，再复用 {@link PdfNormalizer}
+ * 逐页渲染，下游与 PDF 完全一致，不必单写识别分支。
  *
- * <p>S3 落地：Word 不能像图片那样直接喂视觉模型，所以先借 LibreOffice 把文档转成 PDF，
- * 再复用 {@link PdfNormalizer} 渲染成每一页一张 PNG。这样就和 PDF 走完全相同的下游，
- * 不用为 Word 单独写识别分支。
- *
- * <p>降级：如果用户电脑没装 LibreOffice，转不了，就直接返回友好的 415 提示「请另存为 PDF」，
- * 而不是抛一个看不懂的 500 堆栈。
+ * <p>没装 LibreOffice 时返回 415「请另存为 PDF」，不抛 500 堆栈。
  */
 @Component
 public class WordNormalizer implements MaterialNormalizer {

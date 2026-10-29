@@ -4,18 +4,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 从一份材料里抽出来的"事实"。
+ * 从一份材料里抽出来的"事实"，只回答材料上写了什么，不含任何分值判断。
  *
- * <p>它只回答"材料上写了什么"，不含任何分值判断——分值是规则引擎的事（见架构文档 §6.0）。
+ * <p><b>null ≠ 空串</b>：null 表示"没写 / 无法确定"，转成空串会让"证书没写级别"和
+ * "级别是空"混为一谈，规则层随之误判。
  *
- * <p><b>null 有明确语义</b>：材料上没写 / 无法确定。转换时不要把 null 变成空串，
- * 否则"证书上没有写级别"和"级别是空"就分不清了，规则层会误判。
- *
- * <p>字段名用 snake_case 是为了跟 prompt 输出、金标准 JSON 完全对齐，
- * 少一层映射就少一处出错的地方。
- *
- * <p>事实字段（判准确率只看这 7 个）：{@code doc_type / person_name / issuer / date /
- * period_start / period_end / title}。其余是弱判断，只记录不判对错。
+ * <p>字段名用 snake_case，与 prompt 输出、金标准 JSON 完全对齐，少一层映射。
+ * 判准确率只看 7 个事实字段：doc_type / person_name / issuer / date /
+ * period_start / period_end / title。
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ExtractedFact(

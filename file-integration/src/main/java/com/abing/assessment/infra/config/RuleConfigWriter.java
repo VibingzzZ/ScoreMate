@@ -23,18 +23,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 把确认过的规则草稿写成 YAML，替换当前生效的配置。
+ * 把确认过的规则草稿写成 YAML，<b>覆盖当前生效的那份</b>（用户心智是「今年换了细则，
+ * 重传一次」，不该知道文件在哪）。旧文件备份成 {@code .bak-时间戳}。
  *
- * <p><b>写入不是「新建一份」，而是「覆盖当前这份」。</b>因为用户的心智模型是
- * 「今年换了细则，我重新传一次」——他不需要知道 YAML 在哪个目录、加载路径是什么。
- * 旧文件自动备份成 {@code .bak-时间戳}，改坏了能退回。
+ * <p>只换 {@code rule_groups} 与 meta 来源信息；{@code formulas} / {@code dimensions} /
+ * {@code global_constraints} 原样保留——那是学校统一规定，重新生成会丢。
  *
- * <p>只替换 {@code rule_groups} 和 meta 里的来源信息，{@code formulas} /
- * {@code dimensions} / {@code global_constraints} 原样保留：那些是学校统一规定的
- * 计算方式和打包规格，不在学院细则里，重新生成会丢。
- *
- * <p>副作用：SnakeYAML dump 不带注释，所以原文件里的说明性注释会消失。
- * 这是有意的取舍——重新导入本来就会重写规则部分，而备份还在。
+ * <p>已知副作用：SnakeYAML dump 不保留注释，原文件说明会消失（备份里还有）。
  */
 @Component
 public class RuleConfigWriter {

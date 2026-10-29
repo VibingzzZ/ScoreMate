@@ -6,17 +6,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 一份已加载的规则配置（学院层）。
+ * 一份已加载的规则配置（学院层）。{@code dimensions} / {@code ruleGroups} 是一等公民，
+ * {@link #raw()} 只作兜底——保留解析器认不出的新字段，便于排查"配置写了没生效"。
  *
- * <p>2026-10-28 收窄：schema 已经定稿（见 docs/综测整理-规则schema草案.md 的五项决策），
- * 所以 {@code dimensions} / {@code ruleGroups} 是两个一等公民，不再只是躺在 raw 里的 Map。
- * <b>{@link #raw()} 仍然保留</b>——它是兜底：解析器认不出的新字段不至于被丢掉，
- * 排查"配置写了但没生效"时能直接看到原文结构。
- *
- * @param formulas          计分公式原文（{@code overall} 必填，各维度公式也可放这里）
- * @param globalConstraints  跨组通用约束（时间窗口 / 同类取最高 / 须证明 / 多人框本人）
- * @param dimensions         五个计分维度（德智体美劳）
- * @param ruleGroups         加分/扣分规则组
+ * @param formulas          公式原文（{@code overall} 必填，维度公式也可放这里）
+ * @param globalConstraints 跨组通用约束（时间窗口 / 同类取最高 / 须证明）
+ * @param dimensions        五个计分维度
+ * @param ruleGroups        加分 / 扣分规则组
  */
 public record RuleConfig(
         String school,

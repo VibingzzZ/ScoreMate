@@ -3,20 +3,15 @@ package com.abing.assessment.infra.llm;
 import java.util.UUID;
 
 /**
- * 一份模型配置档案（CC-SWITCH 风格的「配置项」）。
+ * 一份模型配置档案。用户可存多份随时切换，整个档案（含 Key）加密后作为
+ * 一个 JSON 字符串存进 {@link ApiKeyStore}，底层存储接口不用变。
  *
- * <p>用户可以存多份档案（"我的 DeepSeek"、"实验室 Qwen"、"公司 OpenAI"…），
- * 每份 = 名称 + 厂商 + 接口地址 + 模型名 + Key，随时切换启用哪一份。
- *
- * <p>整个档案（含 Key）加密后作为一个 JSON 字符串存入 {@link ApiKeyStore}，
- * 存储接口不用变，也能承载一组信息。
- *
- * @param id       档案唯一标识；新建时为空，由 {@link LlmProfileStore} 补
- * @param name     用户起的名字，可空（空则用「厂商标名 · 模型」兜底显示）
+ * @param id       唯一标识；新建为空，由 {@link LlmProfileStore} 补
+ * @param name     用户起的名字，空则显示「厂商 · 模型」
  * @param provider deepseek / doubao / openai / claude / custom
- * @param baseUrl  OpenAI 兼容端点，例如 https://api.deepseek.com/v1
- * @param model    模型名，任意可填（不写死）
- * @param apiKey   API Key，只在此对象里流转，绝不进日志
+ * @param baseUrl  OpenAI 兼容端点，如 https://api.deepseek.com/v1
+ * @param model    模型名，任意可填
+ * @param apiKey   只在此对象里流转，绝不进日志
  */
 public record LlmProfile(String id, String name, String provider, String baseUrl, String model, String apiKey) {
 

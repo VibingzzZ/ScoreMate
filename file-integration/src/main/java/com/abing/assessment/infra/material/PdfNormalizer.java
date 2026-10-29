@@ -11,14 +11,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * PDF → 每页一张 JPEG。
+ * PDF → 每页一张 JPEG。DPI=150 对 A4 证书足够读字（长边 1754，落在
+ * {@link ImageOps#MAX_LONG_EDGE} 之内，不会被二次缩放）。
  *
- * <p>视觉模型只读图，所以无论用户上传扫描件还是电子版 PDF，都先归一化。DPI=150 对 A4 证书
- * 足够模型读字（长边 1754，正好落在 {@link ImageOps#MAX_LONG_EDGE} 以内，不会被二次缩放）。
- *
- * <p><b>只渲染前 {@code maxPages} 页，而不是渲染完再截断。</b>渲染一页 A4 要几十毫秒到几百毫秒，
- * 一份 40 页的扫描件全渲染就是十几秒 + 上百 MB 内存，最后 35 张直接扔掉——用户感受到的
- * 就是「传到一半卡住」。总页数照样返回，用来提示「共 N 页，仅识别前 5 页」。
+ * <p><b>渲染时就按 maxPages 收手</b>，不是全渲染再截断：40 页扫描件全渲染要十几秒 + 上百 MB
+ * 内存，最后 35 张直接扔掉，用户看到的是「传到一半卡住」。
  */
 @Component
 public class PdfNormalizer implements MaterialNormalizer {

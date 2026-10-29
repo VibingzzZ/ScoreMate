@@ -21,18 +21,11 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * 从 configs/ 目录加载规则配置。
+ * 从 configs/ 加载规则配置。三条纪律：配置在包外（改配置不用重建）；
+ * 缺字段要报出来（宁可页面上红着，也不静默跳过）；{@code configs/_school/} 是被引用的公共部分，
+ * 不单独成规则。
  *
- * <p>三条纪律（对应架构文档 §3.1 的配置原则）：
- * <ol>
- *   <li><b>配置在包外</b>：不打包进 jar，改配置不用重新构建</li>
- *   <li><b>缺字段要报出来</b>：宁可页面上红着"缺少 meta.college"，也不要静默跳过</li>
- *   <li><b>学校层不单独成规则</b>：{@code configs/_school/} 是被学院层引用的公共部分，跳过</li>
- * </ol>
- *
- * <p>2026-10-28：支持通用 schema 的 {@code dimensions} / {@code rule_groups}。
- * 解析策略是「<b>能认的认，认不的报</b>」——单条规则写错不会拖垮整份配置，
- * 但会把问题写进 problems 让页面看得见。
+ * <p>解析策略「<b>能认的认，认不得的报</b>」：单条写错不拖垮整份配置，问题进 problems 让人看见。
  */
 @Component
 public class YamlRuleLoader {

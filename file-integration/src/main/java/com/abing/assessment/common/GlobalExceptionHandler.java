@@ -4,9 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * 全局异常处理类
- */
+/** 全局异常处理：业务异常转统一响应，未预期异常记日志后返回通用文案。 */
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {

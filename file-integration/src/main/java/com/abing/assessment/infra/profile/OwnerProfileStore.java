@@ -14,13 +14,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * 本人信息的本地存取。
+ * 本人信息的本地存取：{@code %LOCALAPPDATA%\Assessment\owner.json}，不加密——
+ * 里面只有姓名学号，没有密钥，加密反而让人以为存了密码。
  *
- * <p>放 {@code %LOCALAPPDATA%\Assessment\owner.json}，和 Key 文件同目录但不加密：
- * 它是用户自己的姓名学号，不涉及密钥；加密反而会让人以为"里面存了密码"。
- * 文件留在本机、不上传，随程序目录一起删掉即可。
- *
- * <p>读写失败一律降级为空档案：拿不到档案最多是少一层校验，不能让整个程序起不来。
+ * <p>读写失败一律降级为空档案：最多少一层校验，不能让程序起不来。
  */
 @Component
 public class OwnerProfileStore {

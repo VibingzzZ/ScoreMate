@@ -20,21 +20,13 @@ import java.util.Set;
 /**
  * 规则引擎：材料事实 → 分数。
  *
- * <p>**纯函数**：无 IO、无 Spring、无随机、不读 {@code now()}。同样的输入永远同样的输出。
- * 这一条决定了它可以被穷举测试，也决定了用户申诉时有据可查——这是整个项目里
- * "AI 只负责看懂材料、算分必须可复现"那条底线（架构文档 ADR-16）的落脚点。
+ * <p><b>纯函数</b>：无 IO、无 Spring、不读 {@code now()}，同输入必同输出——
+ * 既可穷举测试，也是"AI 只看懂材料、算分必须可复现"（ADR-16）的落脚点。
  *
- * <p>五步顺序（顺序错了结果就错，见架构文档 §5.2）：
- * <ol>
- *   <li>窗口校验：日期不在学年内 → 标 {@code inWindow=false}，<b>不删除</b>，由人最终定</li>
- *   <li>查表定级：材料事实去匹配 {@code match} 条件；级别不明时<b>给出各等级候选</b>，绝不猜死</li>
- *   <li>规则匹配：命中多条 → 全部保留为候选行，默认取最高分那条，用户可改选</li>
- *   <li>冲突合并：按组 {@code max_items} 截断（同类别取最高），被挤掉的留在页面上</li>
- *   <li>维度聚合：{@code formula} 求值（内置解析器），再按权重算总分</li>
- * </ol>
+ * <p>五步，顺序不能错：窗口校验 → 查表定级 → 规则匹配 → 组内截断 → 维度聚合。
+ * 每一步都只标记不丢弃：越界、级别不明、命中多条、超出组上限的，全留在页面上由人定。
  *
- * <p><b>不做的事</b>：不猜数量（"志愿服务"读不出小时数就不给分，标人工）、
- * 不把没匹配上的材料丢掉（进 UNMATCHED 列表）。
+ * <p><b>不做</b>：不猜数量（读不出小时数就标人工）、不丢未匹配材料（进 UNMATCHED）。
  */
 public final class ScoreEngine {
 
@@ -77,9 +69,8 @@ public final class ScoreEngine {
                 if (!cfg.dimensionIndex().containsKey(g.dimension())) {
                     continue;
                 }
-                // 组级「育」过滤：AI 已判定这张证书属于哪个育，规则组也知道自己属于哪个育。
-                // 两边都说得出话却对不上 → 整组跳过。防的是同一张摄影奖状被美育和德育
-                // 各算一遍——重复计分比漏算更难被发现，学生也更容易被说成虚报。
+                // 组级「育」过滤：AI 判定的育与规则组的育都明确却对不上 → 整组跳过。
+                // 防同一张摄影奖状被美育 + 德育各算一遍（重复计分比漏算更难被发现）。
                 if (!dimensionCompatible(f, g, cfg)) {
                     continue;
                 }
@@ -396,9 +387,8 @@ public final class ScoreEngine {
                 }
                 case "column" -> columnWanted = v == null ? null : String.valueOf(v);
                 case "level_unknown" -> {
-                    // 只在「读不出级别」时才让兜底条目参与。没有这一条，院级干事会被
-                    // 「级别未定·干事 +6」这条兜底抢走分（引擎默认取同组最高），
-                    // 明明读出了院级却按校级给分，是货真价实的多给分。
+                // 兜底条目只在「读不出级别」时参与。否则院级干事会被「级别未定·干事 +6」
+                // 抢走（引擎默认取同组最高），明明读出院级却按校级给分。
                     boolean want = "true".equalsIgnoreCase(String.valueOf(v));
                     String have = f.levelHint();
                     boolean unknown = have == null || have.isBlank() || "不确定".equals(have.trim());

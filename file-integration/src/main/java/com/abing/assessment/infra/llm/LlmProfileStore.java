@@ -13,20 +13,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 多份模型配置档案的存取（CC-SWITCH 式「配置列表 + 当前启用」）。
+ * 多份模型配置档案的存取（配置列表 + 当前启用）。
  *
- * <p><b>为什么不让存储层直接管列表</b>：{@link ApiKeyStore} 的职责就一件事——把一段字符串
- * 加密/解密落盘。多配置只是「这段字符串里装什么」的问题，属于上层编排，所以列表结构放在这里，
- * 底层依旧是一个加密文件，安全性完全不变（DPAPI 整包加密）。
+ * <p>列表结构放在这一层而非 {@link ApiKeyStore}：后者只负责把一段字符串加密落盘，
+ * 「装什么」属于上层编排，底层仍是同一个加密文件。
  *
- * <p><b>落盘格式</b>：
+ * <p>落盘格式：
  * <pre>{@code
  * { "activeId": "a1b2c3", "profiles": [ {id,name,provider,baseUrl,model,apiKey}, ... ] }
  * }</pre>
  *
- * <p><b>旧版本迁移</b>：单档案时代存的是裸的 {@code {provider,baseUrl,model,apiKey}}。
- * 读取时若发现没有 {@code profiles} 字段，就当成"只有一份档案"，自动补 id 并设为启用——
- * 用户升级后不会丢配置，也不用重新填 Key。
+ * <p>旧版单档案存的是裸 {@code {provider,baseUrl,model,apiKey}}；读不到 {@code profiles}
+ * 字段就当作一份档案，自动补 id 并设为启用，升级后不丢配置也不用重填 Key。
  */
 @Component
 public class LlmProfileStore {
@@ -78,15 +76,10 @@ public class LlmProfileStore {
     // ── 写 ───────────────────────────────────────────────────────────────
 
     /**
-     * 新增或更新一份档案。
-     * <ul>
-     *   <li>id 为空 → 新建（分配 id），并在没有启用项时自动启用</li>
-     *   <li>id 已存在 → 按 id 原位覆盖元信息</li>
-     * </ul>
+     * 新增或更新一份档案：id 为空则新建（没有启用项时自动启用），已存在则原位覆盖元信息。
      * 返回落盘后的档案（带 id）。
      *
-     * <p><b>注意</b>：调用方要"先测后留"的话，请先用 {@link #snapshot()} 存档，
-     * 测失败后 {@link #restore(String)} 回滚。
+     * <p>要「先测后留」的调用方，先用 {@link #snapshot()} 存档，测失败后 {@link #restore(String)} 回滚。
      */
     public synchronized LlmProfile upsert(LlmProfile incoming) {
         State s = load();

@@ -12,13 +12,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /**
- * 把 {@link PackPlan} 落成一个 zip 字节数组。
+ * 把 {@link PackPlan} 落成 zip 字节数组。<b>只做搬运</b>：结构、命名、排序全在
+ * {@code PackPlanner} 定好，这里一"顺手调整"就会出现单测通过但实际包不对的分裂。
  *
- * <p>只做搬运：目录结构、文件名、排序全在 {@code PackPlanner} 定好了，
- * 这里一旦开始"顺手调整一下"，就会出现"单测通过但实际包不对"的分裂。
- *
- * <p>注意用 UTF-8 写 ZipOutputStream（Java 会置 EFS 标志），否则 Windows 资源管理器
- * 解出来的中文文件夹名是乱码——这是最容易在开发机上看不出来、发给同学才炸的坑。
+ * <p>必须用 UTF-8 构造 ZipOutputStream（Java 会置 EFS 标志），否则 Windows 解出中文名乱码。
  */
 public final class ZipExporter {
 

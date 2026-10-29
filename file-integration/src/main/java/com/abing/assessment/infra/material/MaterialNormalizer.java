@@ -7,10 +7,8 @@ import java.io.InputStream;
 import java.util.List;
 
 /**
- * 把任意材料归一化成「图片列表」，让下游视觉模型只看图、不关心原始格式。
- *
- * <p>图片会被整形（限长边 + 转 JPEG）、PDF 与 Word 都按页渲染；Word 借 LibreOffice 转 PDF。
- * 统一输出见 {@link NormalizedMaterial#IMAGE_MIME}。
+ * 把任意材料归一化成图片列表，让下游只处理图、不关心原始格式：
+ * 图片整形后透传，PDF 逐页渲染，Word 借 LibreOffice 转 PDF 再渲染。
  */
 public interface MaterialNormalizer {
 

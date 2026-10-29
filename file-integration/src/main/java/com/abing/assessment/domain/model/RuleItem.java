@@ -4,12 +4,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 一条「匹配 → 分值」规则。
+ * 一条「匹配 → 分值」规则，也是整套 schema 的最小单元：职务表、荣誉表、二维矩阵、扣分项
+ * 都表达成同一形状（只做单层 items，多步查表遇到真细则再说）。
  *
- * <p>这是整套 schema 的最小单元：职务表、荣誉表、二维矩阵、扣分项，全都表达成同一个形状
- * （2026-10-27 决策 3：只做单层 {@code items}，多步查表留到真遇到细则再说）。
- *
- * <p>{@code match} 的键是自由的，引擎认识这些常用键（其余键会被忽略并记入问题清单）：
+ * <p>{@code match} 的键自由，引擎只认这几个（其余忽略并记入问题清单）：
  * <table border="1">
  *   <tr><th>键</th><th>取自材料哪个字段</th><th>匹配方式</th></tr>
  *   <tr><td>{@code doc_type}</td><td>docType</td><td>相等（或命中列表之一）</td></tr>
@@ -22,11 +20,11 @@ import java.util.Map;
  *
  * @param match  匹配条件，见上表
  * @param score  固定分值；扣分项写负数
- * @param scores 二维矩阵的一行，与所属 {@link RuleGroup#columns()} 对齐；元素为 null 表示该等次不计分
- * @param unit   计数单位（次 / 小时 / 篇）。有 unit 的条目必须知道数量，引擎只标"需人工填数量"，不瞎猜
- * @param cap    该条目单独的上限（超过部分不计）
- * @param manual 明确标为人工判定（无法从材料自动定分）
- * @param note   依据说明，会原样显示在页面上——「凭什么给这个分」的答案
+ * @param scores 二维矩阵的一行，对应 {@link RuleGroup#columns()}；null 表示该等次不计分
+ * @param unit   计数单位（次 / 小时 / 篇）；有 unit 的只标"需人工填数量"，不猜
+ * @param cap    该条目单独的上限
+ * @param manual 标为人工判定（无法从材料自动定分）
+ * @param note   依据说明，原样显示在页面上
  */
 public record RuleItem(
         Map<String, Object> match,

@@ -3,13 +3,8 @@ package com.abing.assessment.infra.llm;
 import java.io.IOException;
 
 /**
- * API Key 的存取。
- *
- * <p>存在的理由：BYOK 模式下 Key 是<b>用户自己的钱</b>，不能明文落盘、不能进日志、
- * 不能让页面回显完整值（架构文档 §2.7）。
- *
- * <p>Windows 上用 DPAPI 加密（只有当前 Windows 用户能解开），
- * 换用户、换机器、把文件拷走都解不开。
+ * API Key 存取。BYOK 下 Key 是用户自己的钱：不明文落盘、不进日志、不回显完整值。
+ * Windows 上用 DPAPI 加密，换用户 / 换机器都解不开。
  */
 public interface ApiKeyStore {
 

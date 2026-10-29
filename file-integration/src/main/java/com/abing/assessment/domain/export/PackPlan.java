@@ -3,15 +3,13 @@ package com.abing.assessment.domain.export;
 import java.util.List;
 
 /**
- * 打包计划：算分结果 → 学院要求的交付结构。
+ * 打包计划：算分结果 → 交付结构。只做归类 / 命名 / 排序，不碰字节，
+ * 落盘在 infra 层，因此包结构可用纯单测断言。
  *
- * <p>这一层只做"归类 + 命名 + 排序"，不碰文件字节。真正落盘在 infra 层，
- * 这样"包内结构对不对"可以用纯单测断言，不必真的生成 zip。
- *
- * @param zipName   压缩包名，规格是「学号＋姓名」
- * @param folders   五个育的文件夹，<b>顺序即官方顺序</b>（见 {@link PackPlanner#FOLDER_ORDER}）
- * @param skipped   没进包的材料 + 原因——绝不静默丢弃（架构文档 §5.3 硬纪律 1）
- * @param warnings  需要用户看一眼的提醒
+ * @param zipName  压缩包名「学号＋姓名」
+ * @param folders  五个育的文件夹，顺序即官方顺序（见 {@link PackPlanner#FOLDER_ORDER}）
+ * @param skipped  未进包的材料 + 原因，绝不静默丢弃
+ * @param warnings 需用户过目的提醒
  */
 public record PackPlan(
         String zipName,

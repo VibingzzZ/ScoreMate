@@ -3,18 +3,13 @@ package com.abing.assessment.infra.llm;
 import java.util.List;
 
 /**
- * 各厂商的默认接入参数。
+ * 各厂商的默认接入参数。四家都走 OpenAI 兼容的 chat/completions，
+ * 所以一个 {@link OpenAiCompatExtractor} 全覆盖；provider 只决定 baseUrl / model 的预填值。
  *
- * <p>四家都走 OpenAI 兼容的 chat/completions 协议（DeepSeek / 豆包 / OpenAI 官方均原生支持，
- * Claude 经 OpenRouter 等兼容网关），所以一个 {@link OpenAiCompatExtractor} 就能全覆盖，
- * provider 只决定 baseUrl / model 的<b>预填建议值</b>，用户可在页面上改成任意模型。
+ * <p><b>模型名绝不写死</b>：厂商阵容常更新（deepseek-chat 已更名 deepseek-flash），
+ * 任何支持图像输入的模型都能手填，含本地 Ollama。真正生效的是用户保存的 {@link LlmProfile}。
  *
- * <p><b>模型名绝不写死</b>：厂商模型阵容会随时间更新（如 DeepSeek 的 deepseek-chat 已更名下线，
- * 现行为 deepseek-flash），任何「支持图像输入」的模型都可以直接填，包括 Ollama 本地模型。
- * 这里给的只是引导默认，实际生效的是用户保存的档案（{@link LlmProfile}）。
- *
- * <p>Claude 直连 Anthropic 官方（Messages API 格式不同）属于 P1：接口已抽象，后续加
- * {@code AnthropicExtractor} + 工厂即可，不破坏此处。
+ * <p>Claude 直连官方 Messages API 属 P1：接口已抽象，加 {@code AnthropicExtractor} + 工厂即可。
  */
 public final class ProviderDefaults {
 

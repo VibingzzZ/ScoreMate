@@ -3,17 +3,12 @@ package com.abing.assessment.domain.rules;
 import java.util.Map;
 
 /**
- * 计分公式的表达式求值器（内置，零第三方依赖）。
- *
- * <p>支持四则运算 {@code + - * /}、括号、小数、变量引用（含中文变量名）。
- * 变量值由调用方以 {@link Map} 传入。例：
+ * 计分公式求值器（内置，零第三方依赖）：四则运算、括号、小数、变量引用（支持中文变量名）。
  * <pre>
  *   "德育*0.20 + 智育*0.60 + 体育*0.10"
  *   "base*0.30 + peer*0.20 + bonus*0.50 - deduction"
  * </pre>
- *
- * <p><b>决策（2026-10-27）</b>：formula 用引擎内置小解析器，而非 exp4j / JEXL——
- * 计分公式复杂度低，引第三方库不划算。若将来需要函数（min/max/round）再扩。
+ * <p>不用 exp4j / JEXL：公式复杂度低，引库不划算。将来要 min/max/round 再扩。
  */
 public final class FormulaEvaluator {
 

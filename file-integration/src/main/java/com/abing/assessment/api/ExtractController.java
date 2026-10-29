@@ -28,15 +28,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 
 /**
- * 单份材料抽取接口。
- *
- * <p>设计取舍（2026-10-28 定）：<b>每张图只调一次模型</b>，不做二次复核。
- * 准确性靠两件事兜：
- * <ol>
- *   <li>prompt 一次读准（见 configs/prompt/extract-v1.txt 的"读字要求"）</li>
- *   <li>抽完把<b>歧义项</b>抛给用户确认，姓名等身份字段统一采用用户填的本人信息</li>
- * </ol>
- * 这样批量扫描时既省时间也省钱。
+ * 单份材料抽取接口。<b>每页只调一次模型</b>，不做二次复核；准确性靠 prompt 一次读准，
+ * 再把歧义项抛给用户确认，身份字段直接采用本人信息。批量扫描时省时省钱。
  */
 @RestController
 @RequestMapping("/api")

@@ -12,8 +12,7 @@ import java.util.Map;
  * @param choices      候选选择：键 {@code 材料序号:规则组id}，值 {@code ScoreLine.id}
  *                     （一份材料在一组里可能有多个等级的候选，用户挑一个）
  * @param excluded     明确不计入的条目 id（用户在页面上勾掉的行）
- * @param forced       强制计入的条目 id（例如超出学年但学院认可的奖项，
- *                     细则最终解释权在班委，工具不能替人做这个决定）
+ * @param forced       强制计入的条目 id（超出学年但学院认可的奖项，解释权在班委）
  * @param penalties    手填的扣分事由（违纪/宿舍不合格/体测未达标这类没有证书可拍的）
  */
 public record ScoreInput(

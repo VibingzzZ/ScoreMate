@@ -55,8 +55,7 @@ public class AssessmentApplication {
 
         // ── 2. 自己选端口 ────────────────────────────────────────────────
         // 不用 server.port=0：Tomcat 拿到随机端口后要关掉探测 socket 再重新 bind，
-        // 中间那一瞬可能被别的进程抢走。本机实测报 "Port 50545 was already in use"，
-        // 而 50545 其实是别的程序占的，这种错误对用户毫无意义。
+        // 中间可能被别的进程抢走，实测报 "Port 50545 was already in use"（实为他人占用）。
         int port = findAvailablePort(PORT_FROM, PORT_TO);
         System.setProperty("server.port", String.valueOf(port));
         System.setProperty("assessment.port", String.valueOf(port));

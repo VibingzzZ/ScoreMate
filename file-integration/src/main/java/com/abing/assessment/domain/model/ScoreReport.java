@@ -4,16 +4,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 算分结果。
+ * 算分结果。每一条分都能追到「哪份材料 → 哪条细则 → 多少分 → 凭什么」，
+ * <b>答不出凭什么的分不允许出现</b>，故 {@link ScoreLine#basis()} / {@code evidence()} 是一等字段。
  *
- * <p>设计上刻意"啰嗦"：每一条算进总分的分都能追到
- * {@code 哪份材料 → 哪条细则 → 多少分 → 凭什么}。
- * 架构文档 §5.3 的硬纪律是 <b>"答不出凭什么的分不允许出现在结果里"</b>，
- * 所以 {@link ScoreLine#basis()} 和 {@link ScoreLine#evidence()} 都是一等字段。
- *
- * @param overall 总分，{@code null} 表示算不出来（缺输入 / 维度无分）
- * @param status  {@code ok} 全部算齐 / {@code partial} 有维度缺输入 / {@code empty} 没有材料
- * @param penalties 扣分明细（手填的 + 材料里扣出来的），评定表扣分列要逐条写事由
+ * @param overall 总分，{@code null} = 算不出来（缺输入 / 维度无分）
+ * @param status  {@code ok} 算齐 / {@code partial} 缺输入 / {@code empty} 无材料
+ * @param penalties 扣分明细（手填 + 从材料扣出），评定表需逐条写事由
  */
 public record ScoreReport(
         String school,

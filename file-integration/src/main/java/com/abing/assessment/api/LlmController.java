@@ -24,15 +24,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 模型配置的增删改与启停（CC-SWITCH 式多档案）。
- *
- * <p>四条硬规矩（架构文档 §2.7）：
- * <ol>
- *   <li><b>只写不读</b>：前端永远拿不到完整 Key，只能拿到掩码</li>
- *   <li><b>先测后留</b>：新增/改 Key 时立刻测连通性，测不通就回滚到操作前，不留坏配置</li>
- *   <li><b>不落明文</b>：整组档案（含所有 Key）加密存进 DPAPI</li>
- *   <li><b>编辑不强制重填</b>：只改名称/地址/模型时，Key 留空 = 保持原值</li>
- * </ol>
+ * 模型配置的增删改与启停。四条硬规矩：
+ * 只写不读（前端只能拿到掩码）；先测后留（测不通回滚，不留坏配置）；
+ * 不落明文（整组档案 DPAPI 加密）；编辑不强制重填（Key 留空 = 保持原值）。
  */
 @RestController
 @RequestMapping("/api/llm")
@@ -59,15 +53,9 @@ public class LlmController {
     }
 
     /**
-     * 新增或更新一份配置，并立即测试连通性。
-     *
-     * <p>请求体：{@code { id?, name?, provider, apiKey?, baseUrl?, model? }}
-     * <ul>
-     *   <li>无 id → 新增一份，并设为启用</li>
-     *   <li>有 id + apiKey 留空 → 保留原 Key，只改名称/地址/模型</li>
-     * </ul>
-     * 测试失败会回滚本次改动（新增的直接消失，编辑的恢复原样），
-     * 避免用户以为配好了、等上传证书时才收到 401。
+     * 新增或更新一份配置，并立即测连通性。请求体 {@code {id?, name?, provider, apiKey?, baseUrl?, model?}}：
+     * 无 id 则新增并设为启用；有 id 且 apiKey 留空则保留原 Key。
+     * 测失败回滚本次改动，避免用户以为配好了、上传证书时才收到 401。
      */
     @PostMapping("/key")
     public Result<Map<String, Object>> saveKey(@RequestBody Map<String, String> body) throws IOException {

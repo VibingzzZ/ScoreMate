@@ -7,15 +7,10 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 当前该用哪份模型配置（厂商 + 地址 + 模型 + Key）。
+ * 当前该用哪份模型配置，列表与启用状态由 {@link LlmProfileStore} 管。
  *
- * <p>支持多份档案（CC-SWITCH 式）：用户存多套配置，随时切换启用项，
- * 由 {@link LlmProfileStore} 负责列表与启用状态。
- *
- * <p>优先级：<b>页面保存的启用档案 &gt; 环境变量 LLM_API_KEY</b>。
- * 页面填的优先，因为那是用户显式的选择；环境变量留给开发调试和 CI。
- *
- * <p>完整 Key 只在调用模型的那一刻出现一次，其它地方一律拿不到。
+ * <p>优先级：<b>页面保存的启用档案 &gt; 环境变量 LLM_API_KEY</b>（后者留给调试和 CI）。
+ * 完整 Key 只在调用模型的那一刻取一次，别处拿不到。
  */
 @Component
 public class ApiKeyProvider {

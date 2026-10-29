@@ -14,6 +14,12 @@ import java.util.List;
  */
 public record NormalizedMaterial(List<byte[]> images, int totalPages) {
 
+    /**
+     * 归一化后图片的统一格式。所有实现都输出 JPEG（见 {@link ImageOps}），
+     * 调用方不要再写死 image/png——那不匹配的 MIME 会让部分网关直接拒收。
+     */
+    public static final String IMAGE_MIME = "image/jpeg";
+
     /** 单页材料（图片）的便捷构造 */
     public static NormalizedMaterial single(byte[] image) {
         return new NormalizedMaterial(List.of(image), 1);

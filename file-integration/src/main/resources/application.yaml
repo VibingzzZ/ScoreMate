@@ -4,8 +4,11 @@ spring:
 
   servlet:
     multipart:
-      # 单份材料上限。PDF 是逐页渲染的，文件本身大小不影响识别，放宽不会带来额外模型成本
-      max-file-size: 20MB
+      # 单份上传上限。PDF 是逐页渲染的，文件本身大小不影响识别耗时，放宽不会带来额外模型成本。
+      # 这里取 30MB 是为了让「评分细则」（扫描件常 20–30MB）能直传；
+      # 材料侧仍是 20MB —— 前端 MAX_FILE_MB 与 ExtractController.MAX_BYTES 各有一道校验，
+      # 两道在材料上必须一致，改一处等于没改。
+      max-file-size: 30MB
       # 导出接口一次要带上「所有原件」打包，20 份 × 20MB 就有 400MB。
       # 这个值只限制请求体大小，不会一次性读进内存（Spring 会落盘到临时目录）。
       max-request-size: 500MB
@@ -52,12 +55,18 @@ llm:
   # ⚠ 只从环境变量读。绝不要把真实 Key 写在这个文件里（会被提交进 git）
   api-key: ${LLM_API_KEY:}
   timeout-seconds: 120
-  # 单次输出预算。推理类模型（如 deepseek-flash）会先花 token 在思考上，
-  # 给小了会出现 content 为空 + finish_reason=length（页面报"没有返回内容"）。
-  # 被截断时代码会自动翻倍重试一次，所以这里保持一个够用的默认值即可。
-  max-tokens: 4000
-  # 相对 configs/prompt/ 的路径，改 prompt 不用重新打包
-  prompt-file: extract-v1.txt
+  # 单次输出预算。关掉思考后正文只有 200 字左右（实测 165–182 token），2000 是宽裕的兜底。
+  # 万一被截断，代码会自动翻倍重试。
+  max-tokens: 2000
+  # 关掉「思考模式」。抽取是看字抄字，不需要推理，开思考的代价很大（2026-10-29 实测）：
+  #   开：单份 29 秒 / 5942 token，思考撑爆 max_tokens 后正文为空，还得翻倍重试一次
+  #   关：单份 6.6 秒 / 2057 token，金标准准确率反而更高
+  # 端点不支持该参数（非 DeepSeek 或老网关）时会自动摘掉重发，不影响结果。
+  thinking-disabled: true
+  # 相对 configs/prompt/ 的路径，改 prompt 不用重新打包。
+  # v2 是 v1 的精简版（1685 → 1234 字符，每份省约 180 token），
+  # 用金标准三张样例对过：准确率与 v1 完全一致，所以换成 v2。v1 保留可回退。
+  prompt-file: extract-v2.txt
 
 logging:
   level:

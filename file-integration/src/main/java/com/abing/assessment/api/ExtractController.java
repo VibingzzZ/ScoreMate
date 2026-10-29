@@ -21,6 +21,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 
 /**
  * 单份材料抽取接口。
@@ -43,6 +48,15 @@ public class ExtractController {
     /** 单次识别最多处理的页数，避免一份 50 页 PDF 把额度烧光 */
     private static final int MAX_PAGES = 5;
 
+    /**
+     * 多页并发度。
+     *
+     * <p>原来是一页一页串行调模型，5 页 × 6 秒 = 30 秒，用户以为卡死了。页与页之间
+     * 没有任何依赖，并发跑是纯粹的白捡。取 3 是折中：再多容易触发上游 429
+     * （429 会让整份材料重来，反而更慢），而 5 页也只需要两轮。
+     */
+    private static final int PAGE_CONCURRENCY = 3;
+
     /** 低于这个置信度就提示用户逐项核对（实测读错姓名的那次是 0.9，所以阈值不能设太低） */
     private static final double LOW_CONFIDENCE = 0.85;
 
@@ -61,9 +75,11 @@ public class ExtractController {
     public Result<Map<String, Object>> extract(@RequestParam("file") MultipartFile file) throws IOException {
         validate(file);
 
-        String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
+        String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename();
         String mime = file.getContentType() == null ? "" : file.getContentType();
-        MaterialNormalizer normalizer = pickNormalizer(name, mime);
+        // 只传纯扩展名：归一化器按 ext 判断格式，传全名会让 "a.pdf".equals("pdf") 永远为 false，
+        // 结果只能靠 mime 兜底——而浏览器有时不给准 mime
+        MaterialNormalizer normalizer = MaterialNormalizer.pick(normalizers, extensionOf(name), mime);
 
         // 页数上限在这里就传下去：PDF 只渲染用得上的那几页，不先把整本渲染完再丢
         NormalizedMaterial material =
@@ -75,13 +91,16 @@ public class ExtractController {
         List<ExtractedFact> facts = new ArrayList<>();
         List<Map<String, Object>> allIssues = new ArrayList<>();
         String model = null;
-        long totalLatency = 0L;
         int totalTokens = 0;
         boolean tokensKnown = false;
 
+        // 并发识别的墙钟耗时（逐页相加会虚高：3 页并发跑 8 秒，相加是 24 秒）
+        long startedAt = System.currentTimeMillis();
+
         int used = images.size();
-        for (int i = 0; i < used; i++) {
-            ExtractionResult r = extractor.extract(images.get(i), "image/png");
+        for (PageResult pr : extractPages(images)) {
+            ExtractionResult r = pr.result();
+            int i = pr.pageIndex();
 
             // 统一身份字段 + 收集歧义项
             PageOutcome outcome = normalize(r.fact(), owner, i, file.getOriginalFilename());
@@ -98,7 +117,6 @@ public class ExtractController {
             pages.add(page);
 
             model = r.model();
-            totalLatency += r.latencyMs();
             if (r.totalTokens() != null) {
                 totalTokens += r.totalTokens();
                 tokensKnown = true;
@@ -115,12 +133,66 @@ public class ExtractController {
         data.put("pages", pages);
         data.put("fact", facts.isEmpty() ? null : facts.get(0));   // 兼容旧前端
         data.put("model", model);
-        data.put("latencyMs", totalLatency);
+        data.put("latencyMs", System.currentTimeMillis() - startedAt);
         data.put("totalTokens", tokensKnown ? totalTokens : null);
         // 所有页的歧义项汇总，页面用它渲染"待确认清单"
         data.put("issues", allIssues);
         data.put("ownerName", owner.name());
         return Result.success(data);
+    }
+
+    // ── 并发识别 ─────────────────────────────────────────────────────────
+
+    private record PageResult(int pageIndex, ExtractionResult result) {}
+
+    /**
+     * 并发识别每一页，结果按页序返回。
+     *
+     * <p>页与页之间没有依赖，串行跑只是白白把耗时乘上页数。用虚拟线程而不是固定线程池：
+     * 这里的活全部是「等网络」，一个线程等 6 秒不占 CPU，虚拟线程让并发度不用和核数挂钩。
+     *
+     * <p>返回值按页序排列，调用方可以直接当顺序结果用——不能按完成先后放，
+     * 否则「第 3 页读得快」会把页面顺序打乱。
+     */
+    private List<PageResult> extractPages(List<byte[]> images) {
+        int n = images.size();
+        if (n == 1) {
+            return List.of(new PageResult(0,
+                    extractor.extract(images.get(0), NormalizedMaterial.IMAGE_MIME)));
+        }
+
+        Semaphore gate = new Semaphore(PAGE_CONCURRENCY);
+        try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<Future<PageResult>> futures = new ArrayList<>(n);
+            for (int i = 0; i < n; i++) {
+                int index = i;
+                futures.add(pool.submit(() -> {
+                    gate.acquire();
+                    try {
+                        return new PageResult(index,
+                                extractor.extract(images.get(index), NormalizedMaterial.IMAGE_MIME));
+                    } finally {
+                        gate.release();
+                    }
+                }));
+            }
+            List<PageResult> results = new ArrayList<>(n);
+            for (int i = 0; i < n; i++) {
+                try {
+                    results.add(futures.get(i).get());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new BusinessException("识别被中断", 504);
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause() == null ? e : e.getCause();
+                    if (cause instanceof BusinessException be) {
+                        throw be;
+                    }
+                    throw new BusinessException("第 " + (i + 1) + " 页识别失败：" + cause.getMessage(), 502);
+                }
+            }
+            return results;
+        }
     }
 
     // ── 身份统一 & 歧义收集 ───────────────────────────────────────────────
@@ -197,15 +269,6 @@ public class ExtractController {
 
     // ── 文件校验 ─────────────────────────────────────────────────────────
 
-    private MaterialNormalizer pickNormalizer(String name, String mime) {
-        for (MaterialNormalizer n : normalizers) {
-            if (n.supports(name, mime)) {
-                return n;
-            }
-        }
-        throw new BusinessException("不支持的文件类型（当前仅支持图片和 PDF）", 415);
-    }
-
     private void validate(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("没有收到文件", 400);
@@ -232,5 +295,11 @@ public class ExtractController {
         }
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    /** 取纯扩展名（小写），供归一化器判断格式 */
+    private static String extensionOf(String fileName) {
+        int dot = fileName.lastIndexOf('.');
+        return dot < 0 ? "" : fileName.substring(dot + 1).toLowerCase();
     }
 }

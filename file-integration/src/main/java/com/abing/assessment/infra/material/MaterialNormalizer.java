@@ -1,12 +1,16 @@
 package com.abing.assessment.infra.material;
 
+import com.abing.assessment.common.BusinessException;
+
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 
 /**
  * 把任意材料归一化成「图片列表」，让下游视觉模型只看图、不关心原始格式。
  *
- * <p>图片原样透传、PDF 与 Word 都归一化为每页一张 PNG；Word 借 LibreOffice 转 PDF。
+ * <p>图片会被整形（限长边 + 转 JPEG）、PDF 与 Word 都按页渲染；Word 借 LibreOffice 转 PDF。
+ * 统一输出见 {@link NormalizedMaterial#IMAGE_MIME}。
  */
 public interface MaterialNormalizer {
 
@@ -23,4 +27,19 @@ public interface MaterialNormalizer {
      * @param maxPages     最多渲染多少页，至少 1
      */
     NormalizedMaterial normalize(InputStream in, String originalName, int maxPages) throws IOException;
+
+    /**
+     * 按文件名/MIME 挑一个能处理的归一化器。
+     *
+     * <p>放在接口上是为了让「材料识别」和「细则导入」用同一套挑选逻辑——两处各写一份的话，
+     * 将来加一种格式（比如 Excel）很容易只改到一处，另一处静默用错实现。
+     */
+    static MaterialNormalizer pick(List<MaterialNormalizer> all, String name, String mime) {
+        for (MaterialNormalizer n : all) {
+            if (n.supports(name, mime)) {
+                return n;
+            }
+        }
+        throw new BusinessException("不支持的文件类型（当前仅支持图片、PDF 和 Word）", 415);
+    }
 }

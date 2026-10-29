@@ -62,6 +62,22 @@ const state = {
 
 let exported = false;   // 是否成功导出过一次（用于步骤勾选）
 
+/**
+ * 评分规则（③）的状态。
+ *
+ * <p>draft 是「从细则里读出来、但还没生效」的规则——只有用户点「保存并生效」
+ * 才会写进 YAML。刻意不放 in-memory 之外的地方：关掉页面就是放弃这次转换，
+ * 当前配置一点没动。
+ */
+const ruleState = {
+    current: null,   // /api/rules/current 返回的概况
+    file: null,      // 已选待转换的细则文件
+    draft: null,     // 识别出的草稿（结构对应后端 RuleDraft）
+    open: new Set(), // 展开的组，key = 维度|组名
+    allOpen: false,
+    busy: false
+};
+
 // ══════════════════════════════════════════════════════════════════
 //  步骤导航：从 .sec 生成，滚动时高亮，按状态勾选
 // ══════════════════════════════════════════════════════════════════
@@ -122,6 +138,7 @@ function syncSteps() {
     const done = {
         'sec-owner':  !!(state.profile && state.profile.name),
         'sec-llm':    lastProfiles.some(p => p.active),
+        'sec-rules':  !!(ruleState.current && ruleState.current.groupCount > 0),
         'sec-upload': hasScanned,
         'sec-review': hasScanned && unresolvedCount() === 0,
         'sec-score':  !!sc.report,
@@ -460,13 +477,407 @@ $('key-clear-all').addEventListener('click', async () => {
     }
 });
 
-// ── ③ 上传材料：多选 / 拖拽 → 队列 → 逐份识别 ──────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  ③ 评分规则：上传细则 → 转成草稿 → 人工核对 → 写 YAML
+// ══════════════════════════════════════════════════════════════════
+// 规则不进代码，进 YAML：换学院、换年份只要重传一份细则。
+// 但「上传即生效」不行——加分表是「级别 × 等次」的二维表，模型读错一格
+// 就会给整班算错分，而这个错当场看不出来。所以两步：先出草稿让人核对，
+// 确认后才覆盖配置（旧文件自动备份）。
+
+const DIM_LABEL = {
+    moral: '德育', intellect: '智育', physique: '体育',
+    aesthetic: '美育', labour: '劳育'
+};
+
+// 与导出文件夹顺序一致（德 / 智 / 美 / 体 / 劳）。页面按同样顺序排，
+// 换个年份对照细则时不会因为组序不同而看岔。
+const DIM_ORDER = ['moral', 'intellect', 'aesthetic', 'physique', 'labour'];
+
+const MAX_RULE_MB = 30;
+
+async function loadRulesCurrent() {
+    try {
+        const r = await fetch('/api/rules/current');
+        const payload = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((payload && payload.message) || ('HTTP ' + r.status));
+        ruleState.current = payload.data || {};
+        renderRulesCurrent();
+        updateRulesButtons();
+        syncSteps();
+    } catch (e) {
+        $('rules-cur').innerHTML = '<span class="hint">读取当前规则失败：' + esc(e.message || e) + '</span>';
+    }
+}
+
+function renderRulesCurrent() {
+    const c = ruleState.current || {};
+    const box = $('rules-cur');
+    const bits = [];
+
+    if (c.groupCount) {
+        bits.push('<span><span class="k">当前</span><b>'
+            + esc([c.school, c.college].filter(Boolean).join(' · ') || '未标注学院')
+            + '</b></span>');
+        if (c.ruleVersion) bits.push('<span><span class="k">版本</span>' + esc(c.ruleVersion) + '</span>');
+        bits.push('<span><span class="k">规模</span><b>' + c.groupCount + '</b> 组 · <b>'
+            + c.itemCount + '</b> 条</span>');
+        if (c.sourceFile) bits.push('<span><span class="k">来源</span>' + esc(c.sourceFile) + '</span>');
+        if (c.file) bits.push('<span><span class="k">文件</span>' + esc(c.file) + '</span>');
+    } else {
+        bits.push('<span class="hint">当前还没有任何加分明细，算分只能算基础分。'
+            + '下面传一份学院细则就能补齐。</span>');
+    }
+
+    if (!c.ready) {
+        bits.push('<span style="color:var(--bad)">模型没配好，暂时不能重新转换（先完成 ②）</span>');
+    }
+    box.innerHTML = bits.join('');
+}
+
+function updateRulesButtons() {
+    const ready = !!(ruleState.current && ruleState.current.ready);
+    $('rules-import').disabled = !ready || !ruleState.file || ruleState.busy;
+    $('rules-hint').textContent = ruleState.file
+        ? ruleState.file.name + ' · ' + fmtSize(ruleState.file.size) : '';
+}
+
+function setRuleFile(f) {
+    if (!f) return;
+    if (!/\.(pdf|docx?|jpe?g|png|webp)$/i.test(f.name)) {
+        setMsg($('rules-msg'), 'err', '不支持的格式：' + f.name + '。细则一般是 PDF。');
+        return;
+    }
+    if (f.size > MAX_RULE_MB * 1024 * 1024) {
+        setMsg($('rules-msg'), 'err', f.name + ' 有 ' + fmtSize(f.size)
+            + '，超过 ' + MAX_RULE_MB + 'MB。先用 PDF 压缩工具压一下再传（细则要读每一页，扫描件太大读得也慢）。');
+        return;
+    }
+    ruleState.file = f;
+    updateRulesButtons();
+    setMsg($('rules-msg'), '', '已选择 ' + f.name + '。点「开始转换」——细则通常 20 到 40 页，'
+        + '要 1 分钟出头。转换只生成草稿，不会改动当前规则。');
+}
+
+$('rules-pick').addEventListener('click', e => { e.stopPropagation(); $('rules-file').click(); });
+$('rules-zone').addEventListener('click', () => $('rules-file').click());
+$('rules-file').addEventListener('change', e => {
+    setRuleFile(e.target.files && e.target.files[0]);
+    e.target.value = '';        // 允许重新选同一个文件
+});
+
+['dragenter', 'dragover'].forEach(ev =>
+    $('rules-zone').addEventListener(ev, e => { e.preventDefault(); $('rules-zone').classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev =>
+    $('rules-zone').addEventListener(ev, e => { e.preventDefault(); $('rules-zone').classList.remove('over'); }));
+$('rules-zone').addEventListener('drop', e => {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        setRuleFile(e.dataTransfer.files[0]);
+    }
+});
+
+$('rules-import').addEventListener('click', async () => {
+    if (ruleState.busy || !ruleState.file) return;
+    ruleState.busy = true;
+    $('rules-import').disabled = true;
+    $('rules-import').textContent = '转换中…';
+
+    // 一个大请求，拿不到真实进度；只有「已经等了多少秒」是诚实的。
+    // 30 页细则大约 50–70 秒，没有计时器用户会以为页面卡死。
+    const t0 = Date.now();
+    const tick = () => setMsg($('rules-msg'), '',
+        '正在逐页读取细则…已等待 ' + Math.round((Date.now() - t0) / 1000)
+        + ' 秒（' + ruleState.file.name + '）。期间别关页面，读完会把全部条目列出来供你核对。');
+    tick();
+    const timer = setInterval(tick, 1000);
+
+    try {
+        const fd = new FormData();
+        fd.append('file', ruleState.file);
+        const r = await fetch('/api/rules/import', { method: 'POST', body: fd });
+        const payload = await r.json().catch(() => ({}));
+        if (!r.ok) {
+            setMsg($('rules-msg'), 'err', payload.message || ('转换失败（HTTP ' + r.status + '）'));
+            return;
+        }
+        ruleState.draft = payload.data || {};
+        ruleState.allOpen = false;
+        $('rules-toggle').textContent = '全部展开';
+        // 默认只展开「有未定分条目」的组：200 多条全铺开，用户反而找不到该看哪里
+        ruleState.open = new Set((ruleState.draft.groups || [])
+            .filter(g => (g.items || []).some(i => i.score == null))
+            .map(g => g.dimension + '|' + g.name));
+
+        renderDraft();
+        const secs = ((Date.now() - t0) / 1000).toFixed(0);
+        setMsg($('rules-msg'), 'good', '读完了，用时 ' + secs + ' 秒。下面逐组核对——'
+            + '现在还没改动任何配置，看到不对的分值直接改，多余的点 × 删掉。');
+        $('rules-draft-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+        setMsg($('rules-msg'), 'err', '请求失败：' + e);
+    } finally {
+        clearInterval(timer);
+        ruleState.busy = false;
+        $('rules-import').textContent = '开始转换';
+        updateRulesButtons();
+    }
+});
+
+/** 按维度分组排序，组内顺序保持细则原样（明细行序就是打包顺序） */
+function sortedGroups(groups) {
+    const rank = g => {
+        const i = DIM_ORDER.indexOf(g.dimension);
+        return i < 0 ? DIM_ORDER.length : i;
+    };
+    return (groups || []).slice().sort((a, b) => rank(a) - rank(b));
+}
+
+function draftCounts(d) {
+    const groups = (d && d.groups) || [];
+    const items = groups.reduce((s, g) => s + (g.items || []).length, 0);
+    const unscored = groups.reduce(
+        (s, g) => s + (g.items || []).filter(i => i.score == null).length, 0);
+    return { groups: groups.length, items, unscored };
+}
+
+function renderDraft() {
+    const d = ruleState.draft;
+    const card = $('rules-draft-card');
+    if (!d || !(d.groups || []).length) {
+        card.style.display = 'none';
+        return;
+    }
+    card.style.display = '';
+
+    // 排好序后写回草稿：保存时 YAML 里的顺序就是这个顺序
+    d.groups = sortedGroups(d.groups);
+
+    $('rules-groups').innerHTML = d.groups.map((g, gi) => {
+        const key = g.dimension + '|' + g.name;
+        const open = ruleState.allOpen || ruleState.open.has(key);
+        const items = g.items || [];
+        const need = items.filter(i => i.score == null).length;
+        return '<div class="rg' + (open ? ' open' : '') + '" data-g="' + gi + '">'
+            + '<div class="rg-head" data-role="rg-toggle">'
+            + '<span class="rg-dim' + (g.kind === 'penalty' ? ' penalty' : '') + '">'
+            + esc(DIM_LABEL[g.dimension] || g.dimension || '?') + '</span>'
+            + '<span class="rg-name" title="' + esc(g.name) + '">' + esc(g.name) + '</span>'
+            + '<span class="rg-n" data-role="need" style="color:var(--warn)'
+            + (need ? '' : ';display:none') + '">' + (need ? need + ' 条待填' : '') + '</span>'
+            + '<span class="rg-n">' + items.length + ' 条</span>'
+            + '<span class="rg-caret">▶</span>'
+            + '</div>'
+            + '<div class="rg-items">'
+            + items.map((it, ii) => itemHtml(gi, ii, it)).join('')
+            + (g.note ? '<div class="rg-note">表格备注：' + esc(g.note) + '</div>' : '')
+            + (g.evidence ? '<div class="rg-note">细则原文：' + esc(g.evidence) + '</div>' : '')
+            + '</div></div>';
+    }).join('');
+
+    if (!$('rules-college').value) {
+        $('rules-college').value = (ruleState.current && ruleState.current.college) || '';
+    }
+    renderDraftStat();
+    syncSteps();
+}
+
+function itemHtml(gi, ii, it) {
+    // 等次常常已经写进标题了（「五星宿舍（寝室长）」+ 等次「五星」），
+    // 再补一遍纯属噪音；只有标题里没出现时才单独显示
+    const showRank = it.rank && (!it.title || it.title.indexOf(it.rank) < 0);
+    const rank = showRank ? ' <span class="rl">' + esc(it.rank) + '</span>' : '';
+    const tip = it.title + (it.note ? '｜' + it.note : '');
+    return '<div class="ri' + (it.score == null ? ' need' : '') + '">'
+        + '<div class="rt" title="' + esc(tip) + '">' + esc(it.title || '（未命名条目）') + rank + '</div>'
+        + '<div class="rl">' + esc(it.level || '—') + '</div>'
+        + '<input class="rs-input" type="number" step="0.01" min="0"'
+        + ' data-g="' + gi + '" data-i="' + ii + '"'
+        + ' value="' + (it.score == null ? '' : it.score) + '"'
+        + (it.score == null ? ' placeholder="?"' : '') + ' title="分值（可改）">'
+        + '<button class="rx" data-act="del-item" data-g="' + gi + '" data-i="' + ii
+        + '" title="删掉这条">×</button>'
+        + '</div>';
+}
+
+/** 只刷统计与提醒，不重建 DOM —— 重建会让正在录入的输入框丢焦点 */
+function renderDraftStat() {
+    const d = ruleState.draft;
+    if (!d) return;
+    const c = draftCounts(d);
+
+    const bits = ['共 <b>' + c.groups + '</b> 组 / <b>' + c.items + '</b> 条'];
+    if (d.pagesRead) {
+        bits.push('读了 ' + d.pagesRead + (d.totalPages ? ' / ' + d.totalPages : '') + ' 页');
+    }
+    if (d.totalTokens) bits.push('约 ' + d.totalTokens.toLocaleString() + ' tokens');
+    if (c.unscored) bits.push('<span style="color:var(--warn)">' + c.unscored + ' 条缺分值</span>');
+    $('rules-stat').innerHTML = bits.join(' · ');
+
+    document.querySelectorAll('#rules-groups .rg').forEach(box => {
+        const g = d.groups[Number(box.getAttribute('data-g'))];
+        if (!g) return;
+        const need = (g.items || []).filter(i => i.score == null).length;
+        const span = box.querySelector('[data-role="need"]');
+        if (!span) return;
+        span.style.display = need ? '' : 'none';
+        span.textContent = need ? need + ' 条待填' : '';
+    });
+
+    const warn = [];
+    if (c.unscored) {
+        warn.push('有 ' + c.unscored + ' 条没有分值（黄色行）：点开所在的组补上数字，或点 × 删掉，否则不能保存。');
+    }
+    (d.conflicts || []).forEach(x => warn.push(x));
+    (d.problems || []).forEach(x => warn.push(x));
+
+    if (warn.length) {
+        $('rules-warn').style.display = 'block';
+        $('rules-warn-body').innerHTML = warn.map(w => '<div>· ' + esc(w) + '</div>').join('');
+    } else {
+        $('rules-warn').style.display = 'none';
+    }
+}
+
+$('rules-groups').addEventListener('click', e => {
+    const del = e.target.closest('button[data-act="del-item"]');
+    if (del) {
+        const gi = Number(del.getAttribute('data-g'));
+        const ii = Number(del.getAttribute('data-i'));
+        const g = ruleState.draft && ruleState.draft.groups[gi];
+        if (!g || !g.items[ii]) return;
+        if (!confirm('删掉这一条？\n\n' + g.name + ' · ' + g.items[ii].title)) return;
+        g.items.splice(ii, 1);
+        if (!g.items.length) ruleState.draft.groups.splice(gi, 1);   // 空组一起带走
+        renderDraft();
+        return;
+    }
+
+    const head = e.target.closest('[data-role="rg-toggle"]');
+    if (!head) return;
+    const box = head.parentElement;
+    const g = ruleState.draft && ruleState.draft.groups[Number(box.getAttribute('data-g'))];
+    if (!g) return;
+    const key = g.dimension + '|' + g.name;
+    const open = !box.classList.contains('open');
+    box.classList.toggle('open', open);
+    if (open) ruleState.open.add(key); else ruleState.open.delete(key);
+});
+
+$('rules-groups').addEventListener('change', e => {
+    const input = e.target.closest('input.rs-input');
+    if (!input) return;
+    const gi = Number(input.getAttribute('data-g'));
+    const ii = Number(input.getAttribute('data-i'));
+    const g = ruleState.draft && ruleState.draft.groups[gi];
+    if (!g || !g.items[ii]) return;
+
+    const raw = input.value.trim();
+    const v = raw === '' ? null : Number(raw);
+    if (v != null && !isFinite(v)) {
+        setMsg($('rules-save-msg'), 'err', '「' + g.items[ii].title + '」的分值不是数字：' + raw);
+        return;
+    }
+    g.items[ii].score = v;
+    input.parentElement.classList.toggle('need', v == null);
+    if (v == null) input.placeholder = '?';
+    renderDraftStat();
+});
+
+$('rules-toggle').addEventListener('click', () => {
+    if (!ruleState.draft) return;
+    ruleState.allOpen = !ruleState.allOpen;
+    $('rules-toggle').textContent = ruleState.allOpen ? '全部收起' : '全部展开';
+    renderDraft();
+});
+
+$('rules-discard').addEventListener('click', () => {
+    if (!ruleState.draft) return;
+    if (!confirm('放弃这次转换结果？当前配置不会变，可以重新传一份再转。')) return;
+    ruleState.draft = null;
+    ruleState.file = null;
+    ruleState.open.clear();
+    $('rules-file').value = '';
+    $('rules-draft-card').style.display = 'none';
+    $('rules-msg').textContent = '已放弃这次转换。当前规则没有任何变化。';
+    updateRulesButtons();
+});
+
+$('rules-save').addEventListener('click', async () => {
+    const d = ruleState.draft;
+    if (!d) return;
+
+    // 先自查一遍再发请求：让用户当场看到是哪几条，而不是等后端报错回来
+    const bad = [];
+    (d.groups || []).forEach(g => (g.items || []).forEach(i => {
+        if (i.score == null) bad.push(g.name + ' · ' + i.title);
+    }));
+    if (bad.length) {
+        setMsg($('rules-save-msg'), 'err', '还有 ' + bad.length + ' 条没有分值，补上或删掉：'
+            + bad.slice(0, 3).join('、') + (bad.length > 3 ? ' 等' : ''));
+        return;
+    }
+    const college = $('rules-college').value.trim();
+    if (!college) {
+        setMsg($('rules-save-msg'), 'err', '填一下学院名称——它写进配置，页面上靠它区分是哪份细则。');
+        $('rules-college').focus();
+        return;
+    }
+
+    $('rules-save').disabled = true;
+    $('rules-discard').disabled = true;
+    setMsg($('rules-save-msg'), '', '正在写入配置…');
+    try {
+        const r = await fetch('/api/rules/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ college, sourceFile: d.sourceFile, groups: d.groups })
+        });
+        const payload = await r.json().catch(() => ({}));
+        if (!r.ok) {
+            setMsg($('rules-save-msg'), 'err', payload.message || ('保存失败（HTTP ' + r.status + '）'));
+            return;
+        }
+        const saved = payload.data || {};
+        ruleState.draft = null;
+        ruleState.file = null;
+        ruleState.open.clear();
+        $('rules-file').value = '';
+        $('rules-draft-card').style.display = 'none';
+
+        await loadRulesCurrent();
+        await refreshStatus();          // 侧栏「规则」跟着变
+
+        // 规则换了，之前那份分数是按旧细则算的。留着它比清掉更危险：
+        // 用户会以为「算过了」，导出时才发现数字对不上。
+        sc.report = null;
+        exported = false;
+        $('sc-result').innerHTML = '';
+        $('ex-result').innerHTML = '';
+        loadScoreMeta();
+        syncSteps();
+
+        setMsg($('rules-msg'), 'good', '已保存并生效：' + (saved.file || '')
+            + '（' + (saved.groupCount || 0) + ' 组 / ' + (saved.itemCount || 0) + ' 条）。'
+            + '旧配置已备份成 .bak-[时间] 放在同一目录。去 ⑥ 重新算一次分。');
+    } catch (e) {
+        setMsg($('rules-save-msg'), 'err', '请求失败：' + e);
+    } finally {
+        $('rules-save').disabled = false;
+        $('rules-discard').disabled = false;
+    }
+});
+
+// ── ④ 上传材料：多选 / 拖拽 → 队列 → 逐份识别 ──────────────────────
 
 const ACCEPT_EXT = /\.(pdf|docx?|jpe?g|png|webp)$/i;
 
 // 单份上限。PDF 会被逐页按 150dpi 渲染成图片，所以文件本身大不影响识别耗时；
 // 放窄了反而会把「活动合影多、扫描件页数多」这类正常材料挡在外面。
 const MAX_FILE_MB = 20;
+
+// 同时识别几份。每份都要等一次模型响应，串行等于把等待时间乘上份数；
+// 取 3 是因为再多容易撞上游限流（后端对 429 有一次自动重试兜底）。
+const SCAN_CONCURRENCY = 3;
 
 function addFiles(fileList) {
     const skipped = [];
@@ -529,32 +940,46 @@ $('btn').addEventListener('click', async () => {
     $('btn-clear').disabled = true;
     $('btn').textContent = '识别中…';
 
-    let done = 0;
     const startedAll = Date.now();
-    for (const it of pending) {
-        it.status = 'running';
-        renderQueue();
-        setMsg($('msg'), '', '正在识别第 ' + (done + 1) + ' / ' + pending.length
-            + ' 份：' + it.file.name + '（单份通常 5 到 30 秒，别关页面）');
-        try {
-            const form = new FormData();
-            form.append('file', it.file);
-            const resp = await fetch('/api/extract', { method: 'POST', body: form });
-            const payload = await resp.json().catch(() => ({}));
-            if (!resp.ok) throw new Error((payload && payload.message) || ('HTTP ' + resp.status));
-            it.data = payload.data || {};
-            it.status = 'done';
-            // 有问题就自动展开，让用户一眼看到要改什么
-            it.open = countIssuesOf(it) > 0;
-        } catch (e) {
-            it.status = 'error';
-            it.error = (e && e.message) ? e.message : String(e);
-            it.open = true;
+    const lanes = Math.min(SCAN_CONCURRENCY, pending.length);
+    let cursor = 0;
+    let done = 0;
+    let failed = 0;
+
+    // 多个 lane 同时从队列里取任务：之前是一份一份排队，10 份就是 10 倍等待。
+    // JS 是单线程，cursor++ 不会取到重复下标，不需要锁。
+    const lane = async () => {
+        for (;;) {
+            const i = cursor++;
+            if (i >= pending.length) return;
+            const it = pending[i];
+            it.status = 'running';
+            renderQueue();
+            setMsg($('msg'), '', '正在识别：剩余 ' + (pending.length - done) + ' 份'
+                + (lanes > 1 ? '（同时 ' + lanes + ' 份，单份约 5 到 10 秒）' : '') + '，别关页面');
+            try {
+                const form = new FormData();
+                form.append('file', it.file);
+                const resp = await fetch('/api/extract', { method: 'POST', body: form });
+                const payload = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error((payload && payload.message) || ('HTTP ' + resp.status));
+                it.data = payload.data || {};
+                it.status = 'done';
+                // 有问题就自动展开，让用户一眼看到要改什么
+                it.open = countIssuesOf(it) > 0;
+            } catch (e) {
+                it.status = 'error';
+                it.error = (e && e.message) ? e.message : String(e);
+                it.open = true;
+                failed++;
+            }
+            done++;
+            renderQueue();
+            renderReview();
         }
-        done++;
-        renderQueue();
-        renderReview();
-    }
+    };
+
+    await Promise.all(Array.from({ length: lanes }, lane));
 
     state.running = false;
     $('btn').textContent = '开始识别';
@@ -563,10 +988,11 @@ $('btn').addEventListener('click', async () => {
     // 算分按钮被置灰后就再没人把它点亮（实测：批量扫完，「开始算分」一直是灰的）
     updateScoreHint();
     const secs = ((Date.now() - startedAll) / 1000).toFixed(1);
-    const failed = state.items.filter(x => x.status === 'error').length;
+    const total = state.items.filter(x => x.status === 'done').reduce((s, x) => s + (x.data.totalTokens || 0), 0);
     const left = unresolvedCount();
     setMsg($('msg'), failed ? 'err' : (left ? '' : 'good'),
-        '全部扫完，用时 ' + secs + ' 秒。'
+        '全部扫完，用时 ' + secs + ' 秒'
+        + (total ? '，共 ' + total.toLocaleString() + ' tokens' : '') + '。'
         + (failed ? failed + ' 份失败，展开看原因。' : '')
         + (left ? '有 ' + left + ' 项需要你确认，见下方「待确认」。' : '没有需要确认的字段。'));
     syncSteps();
@@ -779,7 +1205,7 @@ function unresolvedCount() {
     return n;
 }
 
-// ── ④ 待确认清单 ────────────────────────────────────────────────────
+// ── ⑤ 待确认清单 ────────────────────────────────────────────────────
 
 const REASON_LABEL = {
     auto_filled: '已自动补全',
@@ -854,7 +1280,7 @@ function updateSum() {
         + '<span>待确认 <b>' + unresolvedCount() + '</b> 项</span>';
 }
 
-// ── ⑤ 算分 ──────────────────────────────────────────────────────────
+// ── ⑥ 算分 ──────────────────────────────────────────────────────────
 // 后端是纯函数：每次都把「材料 + 输入 + 候选选择 + 排除/强制」整包发过去重算，
 // 前端不自己算分（否则两套逻辑迟早对不上）。
 const sc = {
@@ -891,8 +1317,12 @@ async function loadScoreMeta() {
                 // 「德育基础分」已经带了维度名，别再拼成「德育 · 德育基础分」
                 const name = inp.name || inp.key;
                 const label = name.indexOf(dim.name) === 0 ? name : dim.name + ' · ' + name;
+                // 已填过的值要带回来：更新细则后本函数会重跑一次，重建输入框时丢值
+                // 会让用户以为「刚填的基础分被吃掉了」
+                const cur = sc.inputs[inp.key];
                 html += '<div class="field"><label>' + esc(label) + '</label>'
                     + '<input type="number" step="0.01" min="0" data-sc-key="' + esc(inp.key) + '"'
+                    + ' value="' + (cur == null ? '' : esc(String(cur))) + '"'
                     + ' placeholder="' + esc(inp.hint || '填数字') + '"></div>';
             });
         });
@@ -1179,7 +1609,7 @@ $('sc-result').addEventListener('change', e => {
     }
 });
 
-// ── ⑥ 导出 ──────────────────────────────────────────────────────────
+// ── ⑦ 导出 ──────────────────────────────────────────────────────────
 // 后端拿同一份入参重算一遍再打包，所以这里不把页面上的分数塞进 zip。
 // 理由：前端只要有一次状态不同步，包里的数字就和页面不一致，而这种错用户自己看不出来。
 
@@ -1333,4 +1763,5 @@ syncSteps();
 
 refreshAll();
 loadProfile();
+loadRulesCurrent();
 loadScoreMeta();

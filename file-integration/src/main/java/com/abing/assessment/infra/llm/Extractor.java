@@ -23,6 +23,26 @@ public interface Extractor {
     ExtractionResult extract(byte[] image, String mimeType);
 
     /**
+     * 用指定的 prompt 抽一张图，返回模型原始文本（不做固定 schema 解析）。
+     *
+     * <p>为什么要有这个口子：材料抽取的字段是固定的（{@code ExtractedFact}），
+     * 而「把评分细则表转成规则」是完全不同的 schema，且 prompt 更长、输出更大、
+     * 还要带页码上下文。与其为它再写一份 HttpClient + Key 管理 + 重试 + thinking 开关，
+     * 不如把「怎么调模型」这部分复用出来——Key 管理只有一处，才不会漏打日志或漏关思考。
+     *
+     * @param image     图片字节
+     * @param mimeType  例如 image/jpeg
+     * @param prompt    完整 prompt（调用方负责拼好上下文）
+     * @param maxTokens 本次输出预算（规则页可能一次吐几十条，需要比材料抽取大）
+     * @return 模型返回的正文文本 + 本次调用信息
+     */
+    RawExtraction extractRaw(byte[] image, String mimeType, String prompt, int maxTokens);
+
+    /** {@link #extractRaw} 的结果：只带原始文本，不做 schema 绑定 */
+    record RawExtraction(String text, String model, long latencyMs, Integer totalTokens) {
+    }
+
+    /**
      * 连通性测试：只验证 Key 是否有效、模型名是否存在。
      * <p>不发图片，所以很快，也不消耗多少 token。用户填完 Key 后立刻调一次，
      * 让他当场知道"填对了没有"，而不是等上传证书才发现 401。

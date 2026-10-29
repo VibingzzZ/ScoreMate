@@ -59,6 +59,11 @@ public class OpenAiCompatExtractor implements Extractor {
     private final HttpClient http;
     /** null 表示 prompt 模板缺失，此时抽取不可用但不影响应用启动 */
     private final String prompt;
+    /**
+     * 该端点是否拒绝 thinking 参数。一旦收到一次 400 就置 true，后续请求不再带，
+     * 避免每份材料都白撞一次 400。
+     */
+    private volatile boolean thinkingRejected = false;
 
     public OpenAiCompatExtractor(LlmProperties props, ApiKeyProvider apiKeys) {
         this.props = props;
@@ -73,8 +78,9 @@ public class OpenAiCompatExtractor implements Extractor {
         } else if (!apiKeys.hasKey()) {
             log.info("尚未配置 API Key，请在页面上填写（或设置环境变量 LLM_API_KEY）");
         } else {
-            log.info("抽取器就绪：{}，Key 来源={}，prompt {} 字符",
-                    props.describe(), apiKeys.source(), prompt.length());
+            log.info("抽取器就绪：{}，Key 来源={}，prompt {} 字符，思考模式={}",
+                    props.describe(), apiKeys.source(), prompt.length(),
+                    props.thinkingOff() ? "关（抽取不需要推理）" : "开");
         }
     }
 
@@ -84,11 +90,12 @@ public class OpenAiCompatExtractor implements Extractor {
 
         String dataUrl = "data:" + mimeType + ";base64," + Base64.getEncoder().encodeToString(image);
 
-        // 推理类模型（如 deepseek-flash）会先消耗 token 在思考上，预算给小了正文根本轮不到，
-        // 表现为 content 为空 + finish_reason=length。这里被截断就自动翻倍重试一次，
-        // 用户不需要知道 max_tokens 是什么。
+        // 额度不够时自动翻倍（3000→6000→12000），用户不需要知道 max_tokens 是什么。
+        // 关掉思考后单份正文只要 200 token 左右，正常一次就过，翻倍只是兜底。
         int budget = props.maxTokens();
-        for (int attempt = 1; ; attempt++) {
+        int attempt = 1;
+        int rateLimited = 0;
+        while (true) {
             String requestBody = toJson(payload(dataUrl, prompt, profile.model(), budget));
 
             long startedAt = System.currentTimeMillis();
@@ -96,6 +103,21 @@ public class OpenAiCompatExtractor implements Extractor {
             long latencyMs = System.currentTimeMillis() - startedAt;
 
             if (response.statusCode() != 200) {
+                // 并发识别时可能撞上上游限流：等 3 秒重试一次，别让用户看到"请求过于频繁"
+                // 就以为整份材料废了。只重试一次，避免把限流放大成雪崩。
+                if (response.statusCode() == 429 && rateLimited < 1) {
+                    rateLimited++;
+                    log.info("上游限流，3 秒后重试一次");
+                    sleepQuietly(3000);
+                    continue;
+                }
+                // 该端点不认识 thinking 字段（非 DeepSeek 或老网关）：摘掉重发一次，结果不受影响。
+                // 只做一次，且不消耗截断重试的次数。
+                if (response.statusCode() == 400 && thinkingOn() && !thinkingRejected) {
+                    thinkingRejected = true;
+                    log.info("该端点不接受 thinking 参数，已自动去掉后重试（不影响抽取结果）");
+                    continue;
+                }
                 throw classify(response.statusCode(), response.body());
             }
             try {
@@ -106,15 +128,78 @@ public class OpenAiCompatExtractor implements Extractor {
                 return result;
             } catch (TruncatedOutput e) {
                 int next = Math.min(budget * 2, MAX_TOKEN_CEILING);
-                // 最多试 3 次（1500→3000→6000，或 4000→8000→16000）：
-                // 实测 deepseek-flash 思考很长，只翻一倍不一定够
                 if (attempt >= 3 || next == budget) {
                     throw e.toBusinessException();
                 }
-                log.warn("模型输出被 max_tokens={} 截断（推理模型会先花在思考上），自动放大到 {} 重试",
-                        budget, next);
+                log.warn("模型输出被 max_tokens={} 截断，自动放大到 {} 重试", budget, next);
                 budget = next;
+                attempt++;
             }
+        }
+    }
+
+    /**
+     * 用指定 prompt 抽一张图，返回原始文本。
+     *
+     * <p>重试/降级规则与 {@link #extract} 完全一致（限流一次、thinking 400 降级、
+     * 输出被截断则翻倍预算），保证两条链路的行为不会因为一处改了而分叉。
+     */
+    @Override
+    public RawExtraction extractRaw(byte[] image, String mimeType, String prompt, int maxTokens) {
+        LlmProfile profile = requireProfile();
+        String dataUrl = "data:" + mimeType + ";base64," + Base64.getEncoder().encodeToString(image);
+
+        int budget = maxTokens <= 0 ? props.maxTokens() : maxTokens;
+        int attempt = 1;
+        int rateLimited = 0;
+        while (true) {
+            String requestBody = toJson(payload(dataUrl, prompt, profile.model(), budget));
+
+            long startedAt = System.currentTimeMillis();
+            HttpResponse<String> response = postJson(requestBody, profile);
+            long latencyMs = System.currentTimeMillis() - startedAt;
+
+            if (response.statusCode() != 200) {
+                if (response.statusCode() == 429 && rateLimited < 1) {
+                    rateLimited++;
+                    log.info("上游限流，3 秒后重试一次");
+                    sleepQuietly(3000);
+                    continue;
+                }
+                if (response.statusCode() == 400 && thinkingOn() && !thinkingRejected) {
+                    thinkingRejected = true;
+                    log.info("该端点不接受 thinking 参数，已自动去掉后重试（不影响结果）");
+                    continue;
+                }
+                throw classify(response.statusCode(), response.body());
+            }
+            try {
+                Content c = readContent(response.body());
+                return new RawExtraction(c.text(), profile.model(), latencyMs, c.totalTokens());
+            } catch (TruncatedOutput e) {
+                int next = Math.min(budget * 2, MAX_TOKEN_CEILING);
+                if (attempt >= 3 || next == budget) {
+                    throw e.toBusinessException();
+                }
+                log.warn("模型输出被 max_tokens={} 截断，自动放大到 {} 重试", budget, next);
+                budget = next;
+                attempt++;
+            }
+        }
+    }
+
+    /** 是否真的要发 thinking 参数（用户开了、且这个端点还没拒绝过） */
+    private boolean thinkingOn() {
+        return props.thinkingOff() && !thinkingRejected;
+    }
+
+    /** 重试等待，被中断就老实交回中断标记（吞掉中断会让关应用卡住） */
+    private static void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException("调用模型被中断", 504);
         }
     }
 
@@ -129,6 +214,10 @@ public class OpenAiCompatExtractor implements Extractor {
         body.put("model", profile.model());
         body.put("temperature", 0);
         body.put("max_tokens", PING_MAX_TOKENS);
+        // 不关思考的话，ping 的 8 个 token 会全被思维链吃掉，连通性测试要白等十几秒
+        if (thinkingOn()) {
+            body.put("thinking", Map.of("type", "disabled"));
+        }
         body.put("messages", List.of(Map.of("role", "user", "content", "ping")));
 
         HttpResponse<String> response = postJson(toJson(body), profile);
@@ -194,6 +283,33 @@ public class OpenAiCompatExtractor implements Extractor {
     }
 
     private ExtractionResult parse(String responseBody, long latencyMs, String model) {
+        Content c = readContent(responseBody);
+
+        ExtractedFact fact;
+        try {
+            fact = MAPPER.readValue(firstJsonObject(c.text()), ExtractedFact.class);
+        } catch (JsonProcessingException e) {
+            log.warn("模型输出无法解析为 JSON（finish_reason={}），前 {} 字：{}",
+                    c.truncated() ? "length" : "(空)", LOG_BODY_LIMIT, brief(c.text()));
+            if (c.truncated()) {
+                throw new TruncatedOutput("length");
+            }
+            throw new BusinessException("模型输出不是合法 JSON，可重试一次；若持续失败请换模型或调整 prompt", 502);
+        }
+        return new ExtractionResult(fact, model, latencyMs, c.totalTokens());
+    }
+
+    /** 一段模型返回的正文 + 本次用量 */
+    private record Content(String text, Integer totalTokens, boolean truncated) {
+    }
+
+    /**
+     * 从响应体里取正文。空内容和被截断都在这里分类，避免每个调用方各判断一次。
+     *
+     * <p>抽出来是因为规则导入（{@link #extractRaw}）和材料抽取走的是同一套响应格式，
+     * 两处各写一遍迟早会分叉——比如一处记得判 finish_reason=length，另一处忘了。
+     */
+    private Content readContent(String responseBody) {
         JsonNode root;
         try {
             root = MAPPER.readTree(responseBody);
@@ -205,11 +321,9 @@ public class OpenAiCompatExtractor implements Extractor {
         JsonNode message = choice.path("message");
         String finishReason = choice.path("finish_reason").asText("");
         boolean truncated = "length".equalsIgnoreCase(finishReason);
+        String text = textOf(message.path("content"));
 
-        // content 可能是字符串，也可能是 [{type:"text",text:"..."}] 数组（部分兼容网关这样返回）
-        String content = textOf(message.path("content"));
-
-        if (content.isBlank()) {
+        if (text.isBlank()) {
             // 抽不出东西时唯一的现场记录：必须留下 finish_reason 和原始响应，
             // 否则只剩一句"没有返回内容"，分不清是被截断、被审核、还是模型读不了图。
             log.warn("模型返回空内容 finish_reason={} message字段={} 原始响应={}",
@@ -220,22 +334,15 @@ public class OpenAiCompatExtractor implements Extractor {
             throw new BusinessException(emptyContentHint(finishReason), 502);
         }
 
-        ExtractedFact fact;
-        try {
-            fact = MAPPER.readValue(firstJsonObject(content), ExtractedFact.class);
-        } catch (JsonProcessingException e) {
-            log.warn("模型输出无法解析为 JSON（finish_reason={}），前 {} 字：{}",
-                    finishReason.isEmpty() ? "(空)" : finishReason, LOG_BODY_LIMIT, brief(content));
-            if (truncated) {
-                throw new TruncatedOutput(finishReason);
-            }
-            throw new BusinessException("模型输出不是合法 JSON，可重试一次；若持续失败请换模型或调整 prompt", 502);
+        // 诊断用：thinking 没被关掉时会有 reasoning_tokens，那是纯粹的浪费
+        JsonNode reasoning = root.path("usage").path("completion_tokens_details").path("reasoning_tokens");
+        if (reasoning.isNumber() && reasoning.asInt() > 0) {
+            log.warn("本次调用仍消耗了 {} 个思考 token（thinking 未生效，可能是端点忽略了该参数）",
+                    reasoning.asInt());
         }
 
         JsonNode usage = root.path("usage").path("total_tokens");
-        Integer tokens = usage.isNumber() ? usage.asInt() : null;
-
-        return new ExtractionResult(fact, model, latencyMs, tokens);
+        return new Content(text, usage.isNumber() ? usage.asInt() : null, truncated);
     }
 
     private Map<String, Object> payload(String dataUrl, String userText, String model, int maxTokens) {
@@ -255,6 +362,11 @@ public class OpenAiCompatExtractor implements Extractor {
         body.put("model", model);
         body.put("temperature", 0);
         body.put("max_tokens", maxTokens);
+        // 抽取是「看字抄字」，不需要推理。开思考会先把预算烧在思维链上，
+        // 表现为 content 为空 + finish_reason=length，然后代码翻倍重试——单份成本直接翻倍。
+        if (thinkingOn()) {
+            body.put("thinking", Map.of("type", "disabled"));
+        }
         body.put("messages", List.of(message));
         return body;
     }

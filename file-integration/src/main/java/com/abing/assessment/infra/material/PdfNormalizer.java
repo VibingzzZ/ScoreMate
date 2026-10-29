@@ -4,19 +4,17 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.springframework.stereotype.Component;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * PDF → 每页一张 PNG。
+ * PDF → 每页一张 JPEG。
  *
  * <p>视觉模型只读图，所以无论用户上传扫描件还是电子版 PDF，都先归一化。DPI=150 对 A4 证书
- * 足够模型读字，又不会把单页撑得太大。
+ * 足够模型读字（长边 1754，正好落在 {@link ImageOps#MAX_LONG_EDGE} 以内，不会被二次缩放）。
  *
  * <p><b>只渲染前 {@code maxPages} 页，而不是渲染完再截断。</b>渲染一页 A4 要几十毫秒到几百毫秒，
  * 一份 40 页的扫描件全渲染就是十几秒 + 上百 MB 内存，最后 35 张直接扔掉——用户感受到的
@@ -45,9 +43,9 @@ public class PdfNormalizer implements MaterialNormalizer {
             List<byte[]> pages = new ArrayList<>(limit);
             for (int i = 0; i < limit; i++) {
                 BufferedImage img = renderer.renderImageWithDPI(i, DPI);
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ImageIO.write(img, "png", baos); // 统一落 PNG，下游 Extractor 只认 image/png
-                pages.add(baos.toByteArray());
+                // 编码成 JPEG 而不是 PNG：扫描件的 PNG 单页常有 1–2MB，
+                // base64 后请求体翻 1.33 倍，上传到模型的耗时比模型读图还长
+                pages.add(ImageOps.toModelJpeg(img));
             }
             return new NormalizedMaterial(pages, total);
         }

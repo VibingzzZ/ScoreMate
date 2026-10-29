@@ -39,18 +39,25 @@ class LlmProfileTest {
     void LlmProperties的toString同样不泄露() {
         LlmProperties props = new LlmProperties(
                 "https://api.openai.com/v1", "gpt-4o", "sk-abcdef0123456789xyz", "openai",
-                120, 4000, "extract-v1.txt");
+                120, 4000, "extract-v1.txt", true);
         String s = props.toString();
         assertFalse(s.contains("sk-abcdef0123456789xyz"), "LlmProperties.toString 不应含明文 Key");
         assertTrue(s.contains("****"));
     }
 
+    /**
+     * 默认必须关思考。
+     *
+     * <p>实测（2026-10-29，deepseek-flash + 真实证书）：开思考单份 29 秒 / 5942 token，
+     * 思考撑爆 max_tokens 后正文为空，代码再翻倍重试一次——等于每份材料付两次钱。
+     * 关掉后 6.6 秒 / 2057 token，金标准准确率反而更高。
+     */
     @Test
-    void maxTokens缺省时给足推理余量() {
-        LlmProperties props = new LlmProperties(
-                "u", "m", null, "deepseek", 0, 0, null);
-        assertTrue(props.maxTokens() >= 4000,
-                "默认输出预算不能太小，否则推理模型的正文会被截断（实测 1500 就报'没有返回内容'）");
+    void 默认关思考且预算够正文用() {
+        LlmProperties props = new LlmProperties("u", "m", null, "deepseek", 0, 0, null, null);
+        assertTrue(props.thinkingOff(), "抽取是看字抄字，不需要推理；开思考会吃光预算导致翻倍重试");
+        assertTrue(props.maxTokens() >= 1500,
+                "正文实测 165–182 token，预算要给足余量，被截断会触发翻倍重试");
         assertTrue(props.timeoutSeconds() > 0);
     }
 }

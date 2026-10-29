@@ -17,17 +17,22 @@ public record LlmProperties(
         String provider,
         int timeoutSeconds,
         int maxTokens,
-        String promptFile
+        String promptFile,
+        Boolean thinkingDisabled
 ) {
 
     /**
      * 默认输出预算。
      *
-     * <p>不能给小：推理类模型（如 deepseek-flash）会先消耗 token 在思考上，预算给小了
-     * 正文根本轮不到，表现为 content 为空 + finish_reason=length。
-     * 一次证书抽取的正文只有几百 token，4000 留足思考空间，越界时还会自动翻倍重试。
+     * <p>抽取的正文只有 200 字左右（实测 165–182 token），2000 是很宽的安全边际。
+     *
+     * <p><b>为什么要关思考（2026-10-29 实测）</b>：deepseek-flash 默认开思考、effort=high，
+     * 一次证书抽取会先花掉 4000 token 思考再被 max_tokens 截断，content 为空 →
+     * 触发翻倍重试，等效每份材料调用两次。关掉后单份 29s/5942tok 降到 6.6s/2057tok，
+     * 且金标准准确率反而更高（思考会挤掉正文预算）。抽取是「看字抄字」，
+     * 不需要推理——需要推理的是算分，那部分在本地 ScoreEngine 里，不花 token。
      */
-    private static final int DEFAULT_MAX_TOKENS = 4000;
+    private static final int DEFAULT_MAX_TOKENS = 2000;
 
     public LlmProperties {
         // 给默认值，避免 application.yaml 漏配一项就启动失败。
@@ -48,6 +53,14 @@ public record LlmProperties(
         if (promptFile == null || promptFile.isBlank()) {
             promptFile = "extract-v1.txt";
         }
+        if (thinkingDisabled == null) {
+            thinkingDisabled = true;
+        }
+    }
+
+    /** 是否要求上游关闭思考模式（默认关；端点不支持时会自动降级，见 OpenAiCompatExtractor） */
+    public boolean thinkingOff() {
+        return Boolean.TRUE.equals(thinkingDisabled);
     }
 
     /** 是否已经具备调用条件（有 Key） */

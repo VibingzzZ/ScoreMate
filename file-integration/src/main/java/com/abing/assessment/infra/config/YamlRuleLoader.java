@@ -77,8 +77,7 @@ public class YamlRuleLoader {
         log.info("规则配置加载完成：成功 {} 份，问题 {} 条", rules.size(), problems.size());
     }
 
-    private void loadOne(Path file) {
-        String name = file.getFileName().toString();
+    private void loadOne(Path file) {        String name = file.getFileName().toString();
         try (InputStream in = Files.newInputStream(file)) {
             Object loaded = new Yaml().load(in);
             if (!(loaded instanceof Map<?, ?> map)) {
@@ -330,5 +329,27 @@ public class YamlRuleLoader {
 
     public Path configDir() {
         return configDir;
+    }
+
+    /**
+     * 当前生效的那份配置文件。
+     *
+     * <p>「上传新细则」的语义是<b>替换</b>，所以写入位置就是这份文件——不是新开一个让用户
+     * 自己去改加载路径。没有加载到任何配置时返回 null，调用方自己决定放哪。
+     */
+    public Path primaryFile() {
+        return rules.isEmpty() ? null : rules.get(0).file();
+    }
+
+    /**
+     * 重新读取全部配置。用户导入新细则、或手改了 YAML 之后调用。
+     *
+     * <p>先清空再加载，否则会叠加出一份「旧规则 + 新规则」的幻觉配置——
+     * 那样算分会比实际多给，且没人能看出来。
+     */
+    public synchronized void reload() {
+        rules.clear();
+        problems.clear();
+        load();
     }
 }
